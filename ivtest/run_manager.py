@@ -161,9 +161,10 @@ class RunManager:
                 logger.info("State transition: RUNNING → ABORTED")
             
             # Always end in IDLE
-            if self._state in [RunState.ABORTED, RunState.ARMED]:
+            if self._state in [RunState.ABORTED, RunState.ARMED, RunState.IDLE]:
                 self._state = RunState.IDLE
                 self._run_start_time = None
+                self._abort_requested.clear()  # Ensure flag is cleared
                 logger.info(f"State transition: → IDLE (abort complete)")
         
         return True

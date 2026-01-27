@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pydantic
+numpy
+pandas
+plotly
+streamlit
+pyvisa
+pyvisa-py
+pyserial
+watchdog
