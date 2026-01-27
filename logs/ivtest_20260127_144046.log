@@ -1,0 +1,28 @@
+2026-01-27 14:40:46 - ivtest - INFO - Logging initialized. File: C:\Users\freed\Dropbox\Antigravity\SMU\ivtest\..\logs\ivtest_20260127_144046.log
+2026-01-27 14:40:46 - ivtest.main - INFO - IV Test Software backend starting...
+2026-01-27 14:40:46 - ivtest.main - INFO - Initial state: IDLE
+2026-01-27 14:41:00 - ivtest.routers.smu - INFO - Connect request: USB0::0x0957::0xCD18::MY51143841::INSTR (mock=True)
+2026-01-27 14:41:00 - ivtest.smu_client - INFO - SMU connected: USB0::0x0957::0xCD18::MY51143841::INSTR (mock=True, channel=1)
+2026-01-27 14:41:26 - ivtest.routers.smu - INFO - Sweep request: 0.0V to 3.0V, 7 points
+2026-01-27 14:41:26 - ivtest.smu_client - INFO - Starting IV sweep: 0.0V to 3.0V, 7 points
+2026-01-27 14:41:26 - ivtest.smu_client - INFO - IV sweep complete: 7 points collected
+2026-01-27 14:41:38 - ivtest.routers.smu - INFO - Connect request: USB0::0x0957::0xCD18::MY51143841::INSTR (mock=False)
+2026-01-27 14:41:39 - ivtest.smu_client - INFO - SMU connected: USB0::0x0957::0xCD18::MY51143841::INSTR (mock=False, channel=1)
+2026-01-27 14:41:50 - ivtest.routers.smu - INFO - Sweep request: 0.0V to 6.0V, 13 points
+2026-01-27 14:41:51 - ivtest.smu_client - INFO - Starting IV sweep: 0.0V to 6.0V, 13 points
+2026-01-27 14:41:51 - ivtest.smu_client - INFO - IV sweep complete: 13 points collected
+2026-01-27 14:42:58 - ivtest.smu_client - INFO - SMU disconnected
+2026-01-27 14:43:29 - ivtest.routers.smu - INFO - Connect request: USB0::0x0957::0xCD18::MY51143841::INSTR (mock=False)
+2026-01-27 14:43:29 - ivtest.smu_client - INFO - SMU connected: USB0::0x0957::0xCD18::MY51143841::INSTR (mock=False, channel=1)
+2026-01-27 14:43:37 - ivtest.routers.smu - INFO - Sweep request: 0.0V to 8.0V, 17 points
+2026-01-27 14:43:37 - ivtest.smu_client - INFO - Starting IV sweep: 0.0V to 8.0V, 17 points
+2026-01-27 14:43:46 - ivtest.smu_client - INFO - IV sweep complete: 17 points collected
+2026-01-27 14:44:15 - ivtest.smu_client - INFO - SMU disconnected
+2026-01-27 14:47:37 - ivtest.routers.smu - INFO - Connect request: USB0::0x0957::0xCD18::MY51143841::INSTR (mock=False)
+2026-01-27 14:47:37 - ivtest.smu_client - INFO - SMU connected: USB0::0x0957::0xCD18::MY51143841::INSTR (mock=False, channel=1)
+2026-01-27 14:47:49 - ivtest.routers.smu - INFO - Sweep request: 0.0V to 8.0V, 41 points
+2026-01-27 14:47:49 - ivtest.smu_client - INFO - Starting IV sweep: 0.0V to 8.0V, 41 points
+2026-01-27 14:47:54 - ivtest.smu_client - INFO - IV sweep complete: 41 points collected
+2026-01-27 14:48:06 - ivtest.smu_client - INFO - SMU disconnected
+2026-01-27 14:52:26 - ivtest.main - INFO - Backend shutting down...
+2026-01-27 14:52:26 - ivtest.main - INFO - Shutdown complete

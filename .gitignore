@@ -1,0 +1,29 @@
+# Virtual environments
+.venv/
+.venv310/
+.env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Agent / runtime state
+.agent/
+
+# Measurement data & results
+data/
+runs/
+cal/
+old_cal/
+
+# Logs
+*.log
+
+# Streamlit
+.streamlit/
+
+# OS files
+.DS_Store
+Thumbs.db

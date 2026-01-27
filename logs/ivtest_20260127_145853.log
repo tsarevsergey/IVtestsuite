@@ -1,0 +1,24 @@
+2026-01-27 14:58:53 - ivtest - INFO - Logging initialized. File: C:\Users\freed\Dropbox\Antigravity\SMU\ivtest\..\logs\ivtest_20260127_145853.log
+2026-01-27 14:58:53 - ivtest.main - INFO - IV Test Software backend starting...
+2026-01-27 14:58:53 - ivtest.main - INFO - Initial state: IDLE
+2026-01-27 14:59:09 - ivtest.routers.smu - INFO - Connect request: USB0::0x0957::0xCD18::MY51143841::INSTR (mock=True)
+2026-01-27 14:59:09 - ivtest.smu_client - INFO - SMU connected: USB0::0x0957::0xCD18::MY51143841::INSTR (mock=True, channel=1)
+2026-01-27 14:59:16 - ivtest.arduino_relays - INFO - ArduinoRelayController initialized (mock=True)
+2026-01-27 14:59:16 - ivtest.arduino_relays - INFO - MOCK: Connected to relay controller
+2026-01-27 14:59:29 - ivtest.routers.protocol - INFO - Protocol request: test_run, pixels=[0], modes=['dark', 'light']
+2026-01-27 14:59:29 - ivtest.run_manager - INFO - State transition: IDLE → ARMED
+2026-01-27 14:59:29 - ivtest.run_manager - INFO - State transition: ARMED → RUNNING
+2026-01-27 14:59:29 - ivtest.smu_client - INFO - SMU configured: CURR compliance=0.1, NPLC=1.0
+2026-01-27 14:59:29 - ivtest.smu_client - INFO - Source mode set to VOLT
+2026-01-27 14:59:29 - ivtest.iv_protocol - INFO - === Pixel 0 ===
+2026-01-27 14:59:29 - ivtest.iv_protocol - INFO - Starting DARK sweep on pixel 0
+2026-01-27 14:59:29 - ivtest.smu_client - INFO - Starting IV sweep: 0.0V to 8.0V, 11 points
+2026-01-27 14:59:30 - ivtest.smu_client - INFO - IV sweep complete: 11 points collected
+2026-01-27 14:59:30 - ivtest.iv_protocol - INFO - Saved CSV: data\test_run_P0_dark_20260127_145930.csv
+2026-01-27 14:59:30 - ivtest.iv_protocol - INFO - Starting LIGHT sweep on pixel 0
+2026-01-27 14:59:30 - ivtest.smu_client - INFO - Starting IV sweep: 0.0V to 8.0V, 11 points
+2026-01-27 14:59:31 - ivtest.smu_client - INFO - IV sweep complete: 11 points collected
+2026-01-27 14:59:31 - ivtest.iv_protocol - INFO - Saved CSV: data\test_run_P0_light_20260127_145931.csv
+2026-01-27 14:59:31 - ivtest.run_manager - INFO - State transition: RUNNING → IDLE
+2026-01-27 14:59:31 - ivtest.iv_protocol - INFO - Saved summary: data\test_run_summary.json
+2026-01-27 14:59:31 - ivtest.smu_client - INFO - Output disabled

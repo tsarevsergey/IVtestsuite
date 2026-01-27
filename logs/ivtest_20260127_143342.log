@@ -1,0 +1,11 @@
+2026-01-27 14:33:42 - ivtest - INFO - Logging initialized. File: C:\Users\freed\Dropbox\Antigravity\SMU\ivtest\..\logs\ivtest_20260127_143342.log
+2026-01-27 14:33:42 - ivtest.main - INFO - IV Test Software backend starting...
+2026-01-27 14:33:42 - ivtest.main - INFO - Initial state: IDLE
+2026-01-27 14:34:59 - ivtest.run_manager - INFO - State transition: IDLE → ARMED
+2026-01-27 14:35:04 - ivtest.run_manager - INFO - State transition: ARMED → RUNNING
+2026-01-27 14:35:07 - ivtest.routers.status - WARNING - Abort requested via API
+2026-01-27 14:35:07 - ivtest.run_manager - WARNING - ABORT requested
+2026-01-27 14:35:07 - ivtest.run_manager - INFO - State transition: RUNNING → ABORTED
+2026-01-27 14:35:07 - ivtest.run_manager - INFO - State transition: → IDLE (abort complete)
+2026-01-27 14:35:40 - ivtest.main - INFO - Backend shutting down...
+2026-01-27 14:35:40 - ivtest.main - INFO - Shutdown complete
