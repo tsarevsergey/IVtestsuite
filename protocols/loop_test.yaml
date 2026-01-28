@@ -1,0 +1,21 @@
+name: Loop Engine Test
+description: Test loop control and variable interpolation
+version: 1.0
+
+steps:
+  - action: control/loop
+    params:
+      variable: i
+      range: {start: 1, stop: 4, step: 1} # 1, 2, 3
+    steps:
+      - action: wait
+        params:
+          seconds: 0.1
+      
+      # Mock action to test interpolation (using save just to log success)
+      - action: data/save
+        params:
+          data: [{"test": "value"}]
+          # This should interpolate to "loop_test_1.csv", "loop_test_2.csv", etc.
+          filename: "loop_test_{$i}"
+          folder: "./data/temp"

@@ -1,0 +1,54 @@
+name: Multipixel Sweep - AA2
+description: IV sweep on pixels [1, 3, 5] for AA2. 0.0V to 8.0V.
+version: 1.2
+steps:
+- action: smu/connect
+  params:
+    mock: false
+    channel: 1
+- action: relays/connect
+  params:
+    mock: true
+- action: smu/configure
+  params:
+    compliance: 0.1
+    nplc: 1.0
+- action: smu/source-mode
+  params:
+    mode: VOLT
+- action: relays/all-off
+- action: control/loop
+  params:
+    variable: pixel
+    sequence:
+    - 1
+    - 3
+    - 5
+  steps:
+  - action: relays/pixel
+    params:
+      pixel_id: $pixel
+  - action: wait
+    params:
+      seconds: 0.5
+  - action: smu/sweep
+    params:
+      start: 0.0
+      stop: 8.0
+      points: 20
+      delay: 0.05
+      sweep_type: double
+      scale: linear
+      direction: backward
+      compliance: 0.1
+      keep_output_on: true
+    capture_as: iv_data
+  - action: data/save
+    params:
+      data: $iv_data
+      filename: AA2_pixel_{$pixel}
+      folder: ./data
+- action: smu/output
+  params:
+    enabled: false
+- action: relays/all-off

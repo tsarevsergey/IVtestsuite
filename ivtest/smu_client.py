@@ -282,25 +282,28 @@ class SMUClient:
         scale: str = "linear",
         direction: str = "forward",
         sweep_type: str = "single",
-        source_mode: str = "VOLT"
+        source_mode: str = "VOLT",
+        keep_output_on: bool = False
     ) -> Dict[str, Any]:
         """
-        Execute an advanced IV sweep.
+        Execute IV sweep.
         
         Args:
             start: Start voltage
             stop: Stop voltage
-            steps: Number of points (one way)
+            points: Number of points
             compliance: Current compliance (A)
             delay: Delay between points (s)
+            sweep_type: "single" or "double"
             scale: "linear" or "log"
-            direction: "forward" (start->stop) or "backward" (stop->start)
-            sweep_type: "single" or "double" (forward/backward + back)
+            direction: "forward" or "backward"
             source_mode: "VOLT" (currently only supporting voltage sweeps)
+            keep_output_on: If True, leave output enabled after sweep
         """
         if not self._smu or not self._status.connected:
             return {"success": False, "message": "Not connected"}
         
+        # Point generation logic
         # Point generation logic
         
         with self._op_lock:
@@ -316,38 +319,41 @@ class SMUClient:
                     e_log = e_val if e_val != 0 else (1e-6 if s_val > 0 else -1e-6)
                     
                     # Handle sign
-                    points = np.logspace(
+                    points_arr = np.logspace(
                         np.log10(abs(s_log)), 
                         np.log10(abs(e_log)), 
                         steps
                     )
                     if s_log < 0 or (s_log == 0 and e_log < 0):
-                        points = -points
+                        points_arr = -points_arr
                 else:
-                    points = np.linspace(s_val, e_val, steps)
+                    points_arr = np.linspace(s_val, e_val, steps)
                 
                 # 3. Ensure precise peak/endpoint
-                if len(points) > 0:
-                    points[-1] = e_val
+                if len(points_arr) > 0:
+                    points_arr[-1] = e_val
                 
                 # 4. Handle Sweep Type (Double)
                 if sweep_type.lower() == "double":
                     # Concatenate the first sweep with its reverse (excluding the last point to avoid duplication)
-                    points = np.concatenate([points, points[::-1][1:]])
+                    points_arr = np.concatenate([points_arr, points_arr[::-1][1:]])
                     # Ensure start value is reached exactly at the end of the return trip
-                    points[-1] = s_val
+                    points_arr[-1] = s_val
                 
-                points = points.tolist()
+                points_list = points_arr.tolist()
                 results = []
                 
                 # Configure
-                self._smu.set_source_mode(source_mode)
+                self._smu.set_source_mode("VOLT")
                 self._smu.set_compliance(compliance, "CURR")
-                self._smu.enable_output()
                 
-                logger.info(f"Starting {scale} {sweep_type} sweep ({direction}): {s_val}V to {e_val}V, {len(points)} total points")
+                # Only enable output if not already enabled (to support keep_output_on loops)
+                if not getattr(self._smu, "_output_enabled", False):
+                    self._smu.enable_output()
                 
-                for i, v in enumerate(points):
+                logger.info(f"Starting {scale} {sweep_type} sweep ({direction}): {s_val}V to {e_val}V, {len(points_list)} total points")
+                
+                for i, v in enumerate(points_list):
                     if run_manager.is_abort_requested():
                         logger.warning("IV sweep aborted by user")
                         break
@@ -358,7 +364,8 @@ class SMUClient:
                     meas["set_voltage"] = v
                     results.append(meas)
                 
-                self._smu.disable_output()
+                if not keep_output_on:
+                    self._smu.disable_output()
                 
                 logger.info(f"IV sweep complete: {len(results)} points collected")
                 

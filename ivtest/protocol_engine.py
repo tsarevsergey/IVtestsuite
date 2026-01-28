@@ -9,8 +9,10 @@ Supports:
 """
 import time
 import asyncio
+import threading
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
+import copy
 
 from .logging_config import get_logger
 from .run_manager import run_manager
@@ -53,6 +55,8 @@ class ProtocolEngine:
     def __init__(self):
         self._running = False
         self._captured: Dict[str, Any] = {}
+        self._history: List[Dict[str, Any]] = []
+        self._data_lock = threading.Lock()
         
         # Action dispatch table
         self._actions = {
@@ -76,6 +80,7 @@ class ProtocolEngine:
             "status/complete": self._action_status_complete,
             "status/abort": self._action_status_abort,
             "data/save": self._action_data_save,
+            "control/loop": self._action_control_loop,
         }
     
     def run(self, steps: List[Dict[str, Any]]) -> ProtocolResult:
@@ -89,7 +94,9 @@ class ProtocolEngine:
             ProtocolResult with execution details
         """
         self._running = True
-        self._captured = {}
+        with self._data_lock:
+            self._captured = {}
+            self._history = []
         step_results = []
         
         logger.info(f"Starting protocol execution: {len(steps)} steps")
@@ -126,7 +133,17 @@ class ProtocolEngine:
                 # Capture result if requested
                 if "capture_as" in step and result.result:
                     var_name = step["capture_as"]
-                    self._captured[var_name] = result.result
+                    with self._data_lock:
+                        self._captured[var_name] = result.result
+                        
+                        # Add to history
+                        context = {k: v for k, v in self._captured.items() if k != var_name}
+                        self._history.append({
+                            "timestamp": time.time(),
+                            "variable": var_name,
+                            "value": result.result,
+                            "context": copy.deepcopy(context)
+                        })
                     logger.info(f"Captured '{var_name}' from step {i}")
             
             logger.info(f"Protocol completed successfully: {len(steps)} steps")
@@ -171,7 +188,30 @@ class ProtocolEngine:
         
         start_time = time.time()
         try:
-            result = self._actions[action](params)
+            # Special handling for control actions that need access to sub-steps or self
+            if action.startswith("control/"):
+                sub_steps = step.get("steps", [])
+                result = self._actions[action](params, sub_steps)
+            else:
+                result = self._actions[action](params)
+            
+            # Capture result if requested
+            if "capture_as" in step:
+                var_name = step["capture_as"]
+                with self._data_lock:
+                    self._captured[var_name] = result
+                    
+                    # Add to history (handles recursive steps)
+                    context = {k: v for k, v in self._captured.items() if k != var_name}
+                    hist_item = {
+                        "timestamp": time.time(),
+                        "variable": var_name,
+                        "value": result,
+                        "context": copy.deepcopy(context)
+                    }
+                    self._history.append(hist_item)
+                    logger.info(f"HISTORY: Appended '{var_name}' (Context keys: {list(context.keys())})")
+                
             duration_ms = (time.time() - start_time) * 1000
             
             success = result.get("success", True) if isinstance(result, dict) else True
@@ -198,15 +238,41 @@ class ProtocolEngine:
             )
     
     def _resolve_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Resolve variable references ($var_name) in params."""
+        """
+        Resolve variable references in params.
+        Supports:
+        - Exact match: "$var_name" -> value
+        - String interpolation: "text_{$var_name}_text" -> "text_value_text"
+        """
         resolved = {}
         for key, value in params.items():
-            if isinstance(value, str) and value.startswith("$"):
-                var_name = value[1:]
-                if var_name in self._captured:
-                    resolved[key] = self._captured[var_name]
+            if isinstance(value, str):
+                # 1. Exact match check
+                if value.startswith("$") and "{" not in value:
+                    var_name = value[1:]
+                    if var_name in self._captured:
+                        resolved[key] = self._captured[var_name]
+                        continue
+                
+                # 2. String interpolation check
+                if "{$" in value:
+                    new_val = value
+                    import re
+                    # Find all {$var_name} patterns
+                    matches = re.finditer(r'\{\$([a-zA-Z0-9_]+)\}', value)
+                    valid_interpolation = True
+                    for match in matches:
+                        var_name = match.group(1)
+                        if var_name in self._captured:
+                            # Replace occurrences
+                            new_val = new_val.replace(match.group(0), str(self._captured[var_name]))
+                        else:
+                            # Variable not found, abort interpolation for this string
+                            # valid_interpolation = False 
+                            pass # Keep original token if not found? Or fail? Let's keep original
+                    resolved[key] = new_val
                 else:
-                    resolved[key] = value  # Keep as-is if not found
+                     resolved[key] = value
             else:
                 resolved[key] = value
         return resolved
@@ -259,7 +325,8 @@ class ProtocolEngine:
             delay=params.get("delay", 0.05),
             scale=params.get("scale", "linear"),
             direction=params.get("direction", "forward"),
-            sweep_type=params.get("sweep_type", "single")
+            sweep_type=params.get("sweep_type", "single"),
+            keep_output_on=params.get("keep_output_on", False)
         )
     
     def _action_smu_list_sweep(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -350,6 +417,74 @@ class ProtocolEngine:
         
         logger.info(f"Saved {len(results)} rows to {filepath}")
         return {"success": True, "filepath": str(filepath), "rows": len(results)}
+
+
+    def _action_control_loop(self, params: Dict[str, Any], steps: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Execute sub-steps in a loop.
+        """
+        variable = params.get("variable", "i")
+        sequence = params.get("sequence", [])
+        rng = params.get("range", {})
+        
+        # Determine items to iterate
+        items = []
+        if sequence:
+            items = sequence
+        elif rng:
+            start = rng.get("start", 0)
+            stop = rng.get("stop", 1)  # Using stop as inclusive count or pure range? 
+            # YAML convention: usually start/stop implies range(start, stop)
+            step = rng.get("step", 1)
+            items = list(range(int(start), int(stop), int(step)))
+            
+        if not items:
+            return {"success": False, "message": "No items to iterate"}
+            
+        logger.info(f"Starting loop over '{variable}' with {len(items)} items")
+        
+        total_iterations = 0
+        for val in items:
+            # Check for abort first
+            if run_manager.is_abort_requested():
+                logger.warning("Loop aborted")
+                break
+                
+            # Set loop variable
+            with self._data_lock:
+                self._captured[variable] = val
+            logger.info(f"Loop iteration: {variable}={val}")
+            
+            # Execute sub-steps recursively
+            for i, step in enumerate(steps):
+                if run_manager.is_abort_requested():
+                    break
+                
+                # Execute step (recursive call effectively, but flattened logic)
+                # We reuse _execute_step but need to be careful about logging/result aggregation?
+                # _execute_step returns StepResult. We don't aggregate them all here to avoid memory explosion on huge loops
+                # But we should log failures.
+                
+                result = self._execute_step(i, step)
+                if not result.success:
+                    logger.error(f"Loop step failed: {result.error}")
+                    return {"success": False, "message": f"Loop failed at {variable}={val}: {result.error}"}
+            
+            total_iterations += 1
+            
+        return {"success": True, "iterations": total_iterations}
+
+
+    def get_history(self) -> List[Dict[str, Any]]:
+        """Return a thread-safe copy of capture history."""
+        with self._data_lock:
+            logger.info(f"API: get_history called. Returning {len(self._history)} items.")
+            return copy.deepcopy(self._history)
+
+    def get_captured_data(self) -> Dict[str, Any]:
+        """Return a thread-safe copy of captured data."""
+        with self._data_lock:
+            return copy.deepcopy(self._captured)
 
 
 # Global singleton instance

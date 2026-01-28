@@ -60,7 +60,7 @@ class ProtocolListResponse(BaseModel):
 class ProtocolStatusResponse(BaseModel):
     """Current protocol execution status."""
     state: str
-    run_duration_seconds: float
+    run_duration_seconds: Optional[float] = 0.0
     abort_requested: bool
 
 
@@ -78,29 +78,24 @@ async def list_protocols():
 
 
 @router.post("/run", response_model=ProtocolResponse)
-async def run_protocol(request: RunProtocolRequest):
+async def run_protocol(request: RunProtocolRequest, background_tasks: BackgroundTasks):
     """
-    Run a named protocol from the protocols directory.
-    
-    The protocol is loaded from ./protocols/{name}.yaml
+    Start a named protocol in the background.
     """
-    logger.info(f"Running protocol: {request.name}")
+    logger.info(f"Starting protocol: {request.name}")
     
     try:
         # Load protocol
         proto = protocol_loader.load(request.name)
         
-        # Execute
-        result = protocol_engine.run(proto.steps)
+        # Start in background
+        background_tasks.add_task(protocol_engine.run, proto.steps)
         
         return ProtocolResponse(
-            success=result.success,
+            success=True,
             name=proto.name,
-            steps_completed=result.steps_completed,
-            total_steps=result.total_steps,
-            aborted=result.aborted,
-            error=result.error,
-            captured_data=result.captured_data
+            total_steps=len(proto.steps),
+            captured_data={}
         )
         
     except FileNotFoundError as e:
@@ -111,7 +106,7 @@ async def run_protocol(request: RunProtocolRequest):
             error=str(e)
         )
     except Exception as e:
-        logger.error(f"Protocol execution failed: {e}")
+        logger.error(f"Protocol start failed: {e}")
         return ProtocolResponse(
             success=False,
             name=request.name,
@@ -120,29 +115,24 @@ async def run_protocol(request: RunProtocolRequest):
 
 
 @router.post("/run-inline", response_model=ProtocolResponse)
-async def run_inline_protocol(request: RunInlineRequest):
+async def run_inline_protocol(request: RunInlineRequest, background_tasks: BackgroundTasks):
     """
-    Run an inline protocol (steps passed directly in the request).
-    
-    Useful for testing or dynamically generated protocols.
+    Start an inline protocol in the background.
     """
-    logger.info(f"Running inline protocol: {request.name} ({len(request.steps)} steps)")
+    logger.info(f"Starting inline protocol: {request.name} ({len(request.steps)} steps)")
     
     try:
-        result = protocol_engine.run(request.steps)
+        background_tasks.add_task(protocol_engine.run, request.steps)
         
         return ProtocolResponse(
-            success=result.success,
+            success=True,
             name=request.name,
-            steps_completed=result.steps_completed,
-            total_steps=result.total_steps,
-            aborted=result.aborted,
-            error=result.error,
-            captured_data=result.captured_data
+            total_steps=len(request.steps),
+            captured_data={}
         )
         
     except Exception as e:
-        logger.error(f"Inline protocol execution failed: {e}")
+        logger.error(f"Inline protocol start failed: {e}")
         return ProtocolResponse(
             success=False,
             name=request.name,
@@ -150,12 +140,24 @@ async def run_inline_protocol(request: RunInlineRequest):
         )
 
 
+@router.get("/data")
+async def get_protocol_data():
+    """Get currently captured data variables."""
+    return protocol_engine.get_captured_data()
+
+
+@router.get("/history")
+async def get_protocol_history():
+    """Get history of all captured data events."""
+    return protocol_engine.get_history()
+
+
 @router.get("/status", response_model=ProtocolStatusResponse)
 async def get_protocol_status():
     """Get current protocol execution status."""
     return ProtocolStatusResponse(
         state=run_manager.state.value,
-        run_duration_seconds=run_manager.run_duration_seconds,
+        run_duration_seconds=run_manager.run_duration_seconds or 0.0,
         abort_requested=run_manager.is_abort_requested()
     )
 

@@ -49,11 +49,17 @@ class ProtocolLoader:
             return []
         
         protocols = []
-        for filepath in self.protocols_dir.glob("*.yaml"):
+        # Recursive glob to find protocols in subfolders like 'users/'
+        for filepath in self.protocols_dir.glob("**/*.yaml"):
             try:
-                proto = self.load(filepath.stem)
+                # Use relative path without extension as the identifier name
+                # e.g. "users/myproto" or "iv_sweep"
+                rel_name = filepath.relative_to(self.protocols_dir).with_suffix("").as_posix()
+                
+                proto = self.load(rel_name)
                 protocols.append({
-                    "name": proto.name,
+                    "name": proto.name, # The display name inside valid yaml
+                    "id": rel_name,     # The unique ID for loading
                     "description": proto.description,
                     "version": proto.version,
                     "filename": filepath.name
@@ -62,6 +68,7 @@ class ProtocolLoader:
                 logger.warning(f"Failed to load {filepath}: {e}")
                 protocols.append({
                     "name": filepath.stem,
+                    "id": filepath.relative_to(self.protocols_dir).with_suffix("").as_posix(),
                     "description": f"Error: {e}",
                     "version": "?",
                     "filename": filepath.name
