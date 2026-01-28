@@ -1,6 +1,11 @@
 import streamlit as st
 import json
-from ui.api_client import req, BACKEND_URL
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from api_client import req, BACKEND_URL
 
 st.set_page_config(page_title="API Tester", page_icon="🧪", layout="wide")
 

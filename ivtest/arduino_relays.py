@@ -108,9 +108,14 @@ class ArduinoRelayController:
         
         logger.info(f"ArduinoRelayController initialized (mock={mock})")
     
-    def connect(self) -> Dict:
+    def connect(self, port: Optional[str] = None, mock: Optional[bool] = None) -> Dict:
         """Connect to Arduino (or mock)."""
         with self._lock:
+            if port is not None:
+                self.port = port
+            if mock is not None:
+                self.mock = mock
+                
             if self.mock:
                 # Simulate connection delay
                 time.sleep(0.1)

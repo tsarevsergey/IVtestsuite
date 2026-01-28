@@ -1,0 +1,52 @@
+name: Real SMU IV Sweep 0-8V
+description: IV sweep using real SMU hardware, 0-8V range, saves to CSV
+version: 1.2
+
+steps:
+  # 1. Connect to REAL SMU
+  - action: smu/connect
+    params:
+      mock: false
+      channel: 1
+
+  # 2. Connect to MOCK Relays
+  - action: relays/connect
+    params:
+      mock: true
+
+  # 3. Configure SMU (VOLT source, CURR compliance)
+  - action: smu/configure
+    params:
+      compliance: 0.1  # 100 mA current compliance
+      compliance_type: CURR
+      nplc: 1
+
+  - action: smu/source-mode
+    params:
+      mode: VOLT
+
+  # 4. Run IV sweep 0V to 8V
+  - action: smu/sweep
+    params:
+      start: 0
+      stop: 8
+      points: 41
+      sweep_type: single
+      delay: 0.1
+      compliance: 0.1
+    capture_as: iv_data
+
+  # 5. Turn off output
+  - action: smu/output
+    params:
+      enabled: false
+
+  # 6. Relays off for safety
+  - action: relays/all-off
+
+  # 7. Save data to CSV
+  - action: data/save
+    params:
+      data: $iv_data
+      filename: test1
+      folder: ./data

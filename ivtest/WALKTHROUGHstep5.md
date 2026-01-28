@@ -1,6 +1,6 @@
 # IV Test Software — Implementation Walkthrough
 
-> Last Updated: 2026-01-27
+> Last Updated: 2026-01-28
 
 ## Project Structure
 
@@ -62,7 +62,8 @@ SMU/
 | `/smu/set` | POST | Set voltage/current |
 | `/smu/output` | POST | Enable/disable output |
 | `/smu/measure` | GET | Single measurement |
-| `/smu/sweep` | POST | IV sweep |
+| `/smu/sweep` | POST | Advanced IV sweep (`points`, `scale`, `direction`, `sweep_type`) |
+| `/smu/list-sweep` | POST | Arbitrary sequence sweep (`points` list, `source_mode`) |
 
 ---
 
@@ -128,7 +129,7 @@ Base URL: `http://localhost:5000`
 | Category | Endpoints |
 |----------|-----------|
 | System | `/health`, `/status`, `/arm`, `/start`, `/abort`, `/reset`, `/complete` |
-| SMU | `/smu/*` (connect, disconnect, configure, sweep, measure, etc.) |
+| SMU | `/smu/*` (connect, sweep, list-sweep, measure, configure, etc.) |
 | Relays | `/relays/*` (connect, pixel, led, all-off, status) |
 
 OpenAPI docs: `http://localhost:5000/docs`

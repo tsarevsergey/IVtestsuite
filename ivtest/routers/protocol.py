@@ -1,11 +1,17 @@
 """
-IV Protocol API Endpoints.
+Protocol API Endpoints - Protocol Designer system.
+
+Supports:
+- Loading protocols from YAML files
+- Running named or inline protocols
+- Execution status tracking
 """
 from fastapi import APIRouter, BackgroundTasks
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Dict, Any, Optional
 
-from ..iv_protocol import run_iv_protocol, ProtocolConfig, SweepConfig
+from ..protocol_engine import protocol_engine
+from ..protocol_loader import protocol_loader
 from ..run_manager import run_manager
 from ..logging_config import get_logger
 
@@ -13,106 +19,156 @@ logger = get_logger("routers.protocol")
 router = APIRouter(prefix="/protocol", tags=["protocol"])
 
 
-class ProtocolRequest(BaseModel):
-    """Request to run an IV protocol."""
-    pixels: List[int] = Field(default=[0], description="Pixel indices to measure")
-    modes: List[str] = Field(default=["dark", "light"], description="Measurement modes")
-    led_channel: int = Field(default=0, ge=0, le=3, description="LED channel for light mode")
-    start_voltage: float = Field(default=0.0, description="Start voltage (V)")
-    stop_voltage: float = Field(default=8.0, description="Stop voltage (V)")
-    num_points: int = Field(default=41, ge=2, le=500, description="Number of measurement points")
-    compliance: float = Field(default=0.1, gt=0, description="Current compliance (A)")
-    delay: float = Field(default=0.1, ge=0, description="Delay per point (s)")
-    output_dir: str = Field(default="data", description="Output directory")
-    sample_name: str = Field(default="sample", description="Sample identifier")
+# --- Request Models ---
+
+class RunProtocolRequest(BaseModel):
+    """Request to run a named protocol."""
+    name: str = Field(..., description="Protocol name (filename without .yaml)")
+
+
+class RunInlineRequest(BaseModel):
+    """Request to run an inline protocol (steps passed directly)."""
+    steps: List[Dict[str, Any]] = Field(..., description="Protocol steps")
+    name: str = Field(default="inline", description="Protocol name for logging")
+
+
+class ProtocolStepInfo(BaseModel):
+    """Information about a protocol step result."""
+    step_index: int
+    action: str
+    success: bool
+    duration_ms: float
+    error: Optional[str] = None
 
 
 class ProtocolResponse(BaseModel):
     """Response from protocol execution."""
     success: bool
-    message: Optional[str] = None
-    aborted: Optional[bool] = None
-    num_sweeps: Optional[int] = None
-    output_dir: Optional[str] = None
+    name: str = ""
+    steps_completed: int = 0
+    total_steps: int = 0
+    aborted: bool = False
+    error: Optional[str] = None
+    captured_data: Dict[str, Any] = {}
 
 
-# Store for background task results
-_last_result = {}
+class ProtocolListResponse(BaseModel):
+    """Response listing available protocols."""
+    protocols: List[Dict[str, str]]
 
 
-def _run_protocol_task(request: ProtocolRequest):
-    """Background task to run protocol."""
-    global _last_result
-    _last_result = run_iv_protocol(
-        pixels=request.pixels,
-        modes=request.modes,
-        led_channel=request.led_channel,
-        start_v=request.start_voltage,
-        stop_v=request.stop_voltage,
-        num_points=request.num_points,
-        compliance=request.compliance,
-        delay=request.delay,
-        output_dir=request.output_dir,
-        sample_name=request.sample_name
-    )
+class ProtocolStatusResponse(BaseModel):
+    """Current protocol execution status."""
+    state: str
+    run_duration_seconds: float
+    abort_requested: bool
+
+
+# --- Endpoints ---
+
+@router.get("/list", response_model=ProtocolListResponse)
+async def list_protocols():
+    """
+    List all available protocol files.
+    
+    Protocols are loaded from the ./protocols/ directory.
+    """
+    protocols = protocol_loader.list_protocols()
+    return ProtocolListResponse(protocols=protocols)
 
 
 @router.post("/run", response_model=ProtocolResponse)
-async def run_protocol(request: ProtocolRequest):
+async def run_protocol(request: RunProtocolRequest):
     """
-    Run an IV measurement protocol synchronously.
+    Run a named protocol from the protocols directory.
     
-    For long protocols, consider using /run-async instead.
+    The protocol is loaded from ./protocols/{name}.yaml
     """
-    logger.info(f"Protocol request: {request.sample_name}, pixels={request.pixels}, modes={request.modes}")
+    logger.info(f"Running protocol: {request.name}")
     
-    result = run_iv_protocol(
-        pixels=request.pixels,
-        modes=request.modes,
-        led_channel=request.led_channel,
-        start_v=request.start_voltage,
-        stop_v=request.stop_voltage,
-        num_points=request.num_points,
-        compliance=request.compliance,
-        delay=request.delay,
-        output_dir=request.output_dir,
-        sample_name=request.sample_name
-    )
-    
-    return ProtocolResponse(**result)
+    try:
+        # Load protocol
+        proto = protocol_loader.load(request.name)
+        
+        # Execute
+        result = protocol_engine.run(proto.steps)
+        
+        return ProtocolResponse(
+            success=result.success,
+            name=proto.name,
+            steps_completed=result.steps_completed,
+            total_steps=result.total_steps,
+            aborted=result.aborted,
+            error=result.error,
+            captured_data=result.captured_data
+        )
+        
+    except FileNotFoundError as e:
+        logger.error(f"Protocol not found: {request.name}")
+        return ProtocolResponse(
+            success=False,
+            name=request.name,
+            error=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Protocol execution failed: {e}")
+        return ProtocolResponse(
+            success=False,
+            name=request.name,
+            error=str(e)
+        )
 
 
-@router.post("/run-async")
-async def run_protocol_async(request: ProtocolRequest, background_tasks: BackgroundTasks):
+@router.post("/run-inline", response_model=ProtocolResponse)
+async def run_inline_protocol(request: RunInlineRequest):
     """
-    Run an IV measurement protocol in the background.
+    Run an inline protocol (steps passed directly in the request).
     
-    Use /protocol/status to check progress.
+    Useful for testing or dynamically generated protocols.
     """
-    logger.info(f"Async protocol request: {request.sample_name}")
+    logger.info(f"Running inline protocol: {request.name} ({len(request.steps)} steps)")
     
-    # Check if already running
-    if run_manager.state == run_manager.state.RUNNING:
-        return {"success": False, "message": "Protocol already running"}
-    
-    background_tasks.add_task(_run_protocol_task, request)
-    
-    return {"success": True, "message": "Protocol started in background"}
+    try:
+        result = protocol_engine.run(request.steps)
+        
+        return ProtocolResponse(
+            success=result.success,
+            name=request.name,
+            steps_completed=result.steps_completed,
+            total_steps=result.total_steps,
+            aborted=result.aborted,
+            error=result.error,
+            captured_data=result.captured_data
+        )
+        
+    except Exception as e:
+        logger.error(f"Inline protocol execution failed: {e}")
+        return ProtocolResponse(
+            success=False,
+            name=request.name,
+            error=str(e)
+        )
 
 
-@router.get("/status")
+@router.get("/status", response_model=ProtocolStatusResponse)
 async def get_protocol_status():
-    """Get current protocol status."""
-    return {
-        "state": run_manager.state.value,
-        "run_duration_seconds": run_manager.run_duration_seconds,
-        "abort_requested": run_manager.is_abort_requested(),
-        "last_result": _last_result
-    }
+    """Get current protocol execution status."""
+    return ProtocolStatusResponse(
+        state=run_manager.state.value,
+        run_duration_seconds=run_manager.run_duration_seconds,
+        abort_requested=run_manager.is_abort_requested()
+    )
 
 
 @router.post("/abort")
 async def abort_protocol():
-    """Abort the running protocol."""
+    """Abort the currently running protocol."""
     run_manager.abort()
     return {"success": True, "message": "Abort requested"}
+
+
+@router.post("/reload")
+async def reload_protocols():
+    """Clear the protocol cache and reload all protocols."""
+    protocol_loader.clear_cache()
+    return {"success": True, "message": "Protocol cache cleared"}
