@@ -94,8 +94,66 @@ if not yaml_content:
     st.error("Could not load protocol content.")
     st.stop()
 
+# --- Custom Styling ---
+st.markdown("""
+    <style>
+    /* Main Background & Cards */
+    .stApp {
+        background-color: #0e1117;
+    }
+    .metric-card {
+        background-color: #1e2130;
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 5px solid #4ade80;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.3);
+        margin-bottom: 20px;
+    }
+    .metric-label {
+        font-size: 0.9rem;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+    }
+    .metric-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #f8fafc;
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        width: 100%;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+    }
+    div[data-testid="stVerticalBlock"] > div:has(button:contains("RUN PROTOCOL")) button {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+        border: none !important;
+        height: 3rem;
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+    }
+    div[data-testid="stVerticalBlock"] > div:has(button:contains("STOP SCAN")) button {
+        background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%) !important;
+        border: none !important;
+        height: 3rem;
+        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+    }
+    
+    /* Parameters View */
+    .stExpander {
+        border: 1px solid #334155 !important;
+        background-color: #1e293b !important;
+        border-radius: 10px !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # --- Overrides Section ---
-st.subheader("Configuration")
+st.subheader("🛠️ Setup & Parameters")
 
 with st.expander("Run Parameters (Overrides)", expanded=True):
     col1, col2 = st.columns(2)
@@ -197,16 +255,67 @@ with col_run:
         except Exception as e:
             st.error(f"Connection error: {e}")
 
+# --- Status Dashboard ---
 with col_status:
-    status_ph = st.empty()
-    
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">System State</div><div class="metric-value">{st.session_state.get('system_state', 'IDLE')}</div></div>""", unsafe_allow_html=True)
+    with m2:
+        dur = time.time() - st.session_state.get("run_start_time", time.time()) if st.session_state.running else 0
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Duration</div><div class="metric-value">{dur:.1f}s</div></div>""", unsafe_allow_html=True)
+    with m3:
+        points = sum(len(t["data"]) for t in st.session_state.traces)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Data Points</div><div class="metric-value">{points}</div></div>""", unsafe_allow_html=True)
+    with m4:
+        # Progress calculation if possible
+        progress = 0
+        if st.session_state.running:
+            # Estimate progress based on traces vs expected pixels if loop is used
+            expected_pixels = len(loop_step["params"]["sequence"]) if loop_step else 1
+            progress = min(100, int((len(st.session_state.traces) / expected_pixels) * 100))
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Progress</div><div class="metric-value">{progress}%</div></div>""", unsafe_allow_html=True)
+
 # Plot params
 c_plot1, c_plot2 = st.columns([1, 4])
 with c_plot1:
-    plot_mode = st.radio("Display Mode", ["Accumulate", "Latest Only"])
-    scale_type = st.radio("Scale", ["Linear", "Log Y"])
+    st.markdown("### 📊 Plot View")
+    plot_mode = st.radio("Mode", ["Accumulate", "Latest Only"])
+    scale_type = st.radio("Y-Axis", ["Linear", "Log"])
     
 plot_ph = st.empty()
+
+# --- Scientific Plotly Theme ---
+def get_scientific_fig(df, x, y, color):
+    fig = px.line(df, x=x, y=y, color=color, markers=True, 
+                 template="plotly_dark",
+                 color_discrete_sequence=px.colors.qualitative.Antique)
+    
+    fig.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, sans-serif", size=14, color="#f8fafc"),
+        xaxis=dict(
+            title=dict(text="Voltage (V)", font=dict(size=16, weight="bold")),
+            gridcolor="#334155",
+            zerolinecolor="#94a3b8",
+            showline=True, linewidth=2, linecolor='#475569', mirror=True
+        ),
+        yaxis=dict(
+            title=dict(text="Current (A)", font=dict(size=16, weight="bold")),
+            gridcolor="#334155",
+            zerolinecolor="#94a3b8",
+            showline=True, linewidth=2, linecolor='#475569', mirror=True
+        ),
+        legend=dict(
+            bgcolor="rgba(30, 41, 59, 0.7)",
+            bordercolor="#475569",
+            borderwidth=1,
+            title_font=dict(size=14, weight="bold")
+        ),
+        margin=dict(l=60, r=20, t=40, b=60),
+        height=600
+    )
+    return fig
 
 # --- Rendering (Always render current state) ---
 if st.session_state.traces:
@@ -225,21 +334,16 @@ if st.session_state.traces:
                 df_all = pd.concat([df_all, df], ignore_index=True)
     
     if not df_all.empty:
-        if "set_voltage" in df_all.columns: 
-            x_col = "set_voltage"
-        else:
-            x_col = "voltage"
-            
-        fig = px.line(df_all, x=x_col, y="current", color="trace", markers=True)
-        if scale_type == "Log Y":
-            fig.update_yaxes(type="log")
-            df_all["abs_current"] = df_all["current"].abs()
-            fig = px.line(df_all, x=x_col, y="abs_current", color="trace", markers=True, 
-                            labels={"abs_current": "|Current| (A)"})
-            fig.update_yaxes(type="log")
-            fig.update_xaxes(title="Voltage (V)")
+        x_col = "set_voltage" if "set_voltage" in df_all.columns else "voltage"
+        y_col = "current"
         
-        fig.update_layout(height=500, title="IV Characteristics")
+        if scale_type == "Log":
+            df_all["abs_current"] = df_all["current"].abs().replace(0, 1e-12)
+            y_col = "abs_current"
+            
+        fig = get_scientific_fig(df_all, x_col, y_col, "trace")
+        if scale_type == "Log":
+            fig.update_yaxes(type="log", title="|Current| (A)")
         
         # KEY STABILITY: With st.rerun(), we can use a constant key safely!
         plot_ph.plotly_chart(fig, use_container_width=True, key="live_iv_plot")
@@ -254,22 +358,7 @@ else:
 
 # --- Execution Logic (Rerun Loop) ---
 if st.session_state.running:
-    # Stop Button - Using custom CSS to make it red
-    st.markdown("""
-        <style>
-        div.stButton > button {
-            border-radius: 5px;
-        }
-        /* Style the STOP SCAN button specifically using its identifier if possible, 
-           or just all primary buttons in this sidebar/context */
-        div[data-testid="stVerticalBlock"] > div:has(button:contains("STOP SCAN")) button {
-            background-color: #ff4b4b !important;
-            color: white !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    if st.button("STOP SCAN", type="primary", use_container_width=True):
+    if st.button("STOP SCAN", type="primary"):
         # Call the global /abort endpoint as requested
         requests.post(f"{BACKEND_URL}/abort")
         st.toast("Abort requested...")
@@ -286,8 +375,8 @@ if st.session_state.running:
             status_resp = r_status.json()
             state = status_resp["state"]
             st.session_state.system_state = state
+            # Update duration
             run_duration = time.time() - st.session_state.get("run_start_time", time.time())
-            status_ph.info(f"Status: {state} | Duration: {run_duration:.1f}s")
         else:
             status_ph.warning(f"Backend status error: {r_status.status_code}")
     except Exception as e:
