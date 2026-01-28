@@ -18,6 +18,15 @@ BACKEND_URL = "http://127.0.0.1:5000"  # Force 127.0.0.1 for reliability
 st.set_page_config(page_title="Protocol Runner", page_icon="📈", layout="wide")
 st.title("📈 Protocol Runner")
 
+# --- User Context & Filtering ---
+user = st.session_state.get("user")
+if user:
+    st.sidebar.success(f"Session: **{user}**")
+else:
+    st.sidebar.warning("No user selected")
+    if st.sidebar.button("Go to Login"):
+        st.switch_page("app.py")
+
 # --- Helper Functions ---
 def load_protocols_list():
     try:
@@ -82,10 +91,34 @@ if not protocols:
     st.warning("No protocols found or backend offline.")
     st.stop()
 
-# Map ID to Name for display
-proto_map = {p["id"]: f"{p['name']} ({p['filename']})" for p in protocols}
-selected_id = st.sidebar.selectbox("Select Protocol", options=protocols, format_func=lambda p: f"{p['name']} ({p.get('id','')})")
-selected_id_val = selected_id["id"]
+# 1. Category Selection
+if user:
+    mode = st.sidebar.radio("Protocols Source", ["User Protocols", "All Protocols"])
+else:
+    mode = "All Protocols"
+    st.sidebar.info("Login for personal protocols")
+
+# 2. Filtering
+if mode == "User Protocols" and user:
+    # Filter by user subdirectory (id starts with user/)
+    filtered_protocols = [p for p in protocols if p["id"].startswith(f"{user}/")]
+    if not filtered_protocols:
+        st.sidebar.info(f"No protocols in protocols/{user}/")
+        # Fallback or stop
+else:
+    filtered_protocols = protocols
+
+# 3. Selection
+if not filtered_protocols:
+    st.warning("No protocols available in this category.")
+    st.stop()
+
+selected_proto = st.sidebar.selectbox(
+    "Select Protocol", 
+    options=filtered_protocols, 
+    format_func=lambda p: f"{p['name']} ({p.get('id','')})"
+)
+selected_id_val = selected_proto["id"]
 
 # Load YAML
 yaml_content = get_protocol_content(selected_id_val)
@@ -94,34 +127,31 @@ if not yaml_content:
     st.error("Could not load protocol content.")
     st.stop()
 
-# --- Custom Styling ---
+# --- Custom Styling (Native Compatible) ---
 st.markdown("""
     <style>
-    /* Main Background & Cards */
-    .stApp {
-        background-color: #0e1117;
-    }
+    /* Premium Metric Cards - Semi-transparent to adapt to native themes */
     .metric-card {
-        background-color: #1e2130;
-        padding: 20px;
-        border-radius: 10px;
-        border-left: 5px solid #4ade80;
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.3);
-        margin-bottom: 20px;
+        background-color: rgba(128, 128, 128, 0.1);
+        padding: 1.2rem;
+        border-radius: 12px;
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        border-left: 5px solid #10b981;
+        margin-bottom: 1rem;
     }
     .metric-label {
-        font-size: 0.9rem;
-        color: #94a3b8;
+        font-size: 0.8rem;
+        opacity: 0.7;
         text-transform: uppercase;
         letter-spacing: 0.1em;
+        font-weight: 600;
     }
     .metric-value {
-        font-size: 1.8rem;
+        font-size: 1.6rem;
         font-weight: 700;
-        color: #f8fafc;
     }
     
-    /* Buttons */
+    /* Vibrant Execution Buttons */
     .stButton > button {
         width: 100%;
         border-radius: 8px;
@@ -129,25 +159,27 @@ st.markdown("""
         text-transform: uppercase;
         font-weight: 700;
         letter-spacing: 0.05em;
+        border: none !important;
+        height: 3.5rem;
     }
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
     div[data-testid="stVerticalBlock"] > div:has(button:contains("RUN PROTOCOL")) button {
         background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-        border: none !important;
-        height: 3rem;
-        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        color: white !important;
     }
     div[data-testid="stVerticalBlock"] > div:has(button:contains("STOP SCAN")) button {
         background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%) !important;
-        border: none !important;
-        height: 3rem;
-        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        color: white !important;
     }
     
-    /* Parameters View */
+    /* Professional Expanders */
     .stExpander {
-        border: 1px solid #334155 !important;
-        background-color: #1e293b !important;
-        border-radius: 10px !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(128, 128, 128, 0.2) !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -284,31 +316,35 @@ with c_plot1:
     
 plot_ph = st.empty()
 
-# --- Scientific Plotly Theme ---
+# --- Scientific Plotly Theme (Theme Adaptive) ---
 def get_scientific_fig(df, x, y, color):
+    # Detect if we should use dark or light base template based on streamlit param if possible
+    # But usually, 'none' template + transparent bg is most robust for native streamlit
     fig = px.line(df, x=x, y=y, color=color, markers=True, 
-                 template="plotly_dark",
-                 color_discrete_sequence=px.colors.qualitative.Antique)
+                 template="none",
+                 color_discrete_sequence=px.colors.qualitative.Safe)
     
     fig.update_layout(
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Inter, sans-serif", size=14, color="#f8fafc"),
+        font=dict(family="Inter, sans-serif", size=14),
         xaxis=dict(
             title=dict(text="Voltage (V)", font=dict(size=16, weight="bold")),
-            gridcolor="#334155",
-            zerolinecolor="#94a3b8",
-            showline=True, linewidth=2, linecolor='#475569', mirror=True
+            gridcolor="rgba(128, 128, 128, 0.2)",
+            zerolinecolor="rgba(128, 128, 128, 0.5)",
+            showgrid=True,
+            showline=True, linewidth=2, linecolor='rgba(128, 128, 128, 0.5)', mirror=True
         ),
         yaxis=dict(
             title=dict(text="Current (A)", font=dict(size=16, weight="bold")),
-            gridcolor="#334155",
-            zerolinecolor="#94a3b8",
-            showline=True, linewidth=2, linecolor='#475569', mirror=True
+            gridcolor="rgba(128, 128, 128, 0.2)",
+            zerolinecolor="rgba(128, 128, 128, 0.5)",
+            showgrid=True,
+            showline=True, linewidth=2, linecolor='rgba(128, 128, 128, 0.5)', mirror=True
         ),
         legend=dict(
-            bgcolor="rgba(30, 41, 59, 0.7)",
-            bordercolor="#475569",
+            bgcolor="rgba(128, 128, 128, 0.1)",
+            bordercolor="rgba(128, 128, 128, 0.2)",
             borderwidth=1,
             title_font=dict(size=14, weight="bold")
         ),

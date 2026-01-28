@@ -195,7 +195,18 @@ if "generated_yaml" in st.session_state:
         filename = st.text_input("Filename (no extension)", st.session_state.generated_name)
         if st.button("Save to Protocols"):
              try:
-                filepath = Path(__file__).parent.parent.parent / "protocols" / f"{filename}.yaml"
+                user = st.session_state.get("user")
+                root = Path(__file__).parent.parent.parent / "protocols"
+                
+                if user:
+                    # Save in user folder
+                    user_dir = root / user
+                    if not user_dir.exists():
+                        user_dir.mkdir(parents=True)
+                    filepath = user_dir / f"{filename}.yaml"
+                else:
+                    filepath = root / f"{filename}.yaml"
+                    
                 with open(filepath, "w") as f:
                     f.write(st.session_state.generated_yaml)
                 st.success(f"Saved to {filepath}")

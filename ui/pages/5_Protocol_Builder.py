@@ -257,7 +257,17 @@ with col_preview:
         # We can implement a save endpoint or just notify user to move the file
         # For now, let's just create the file directly via python as we are local
         try:
-            filepath = Path(__file__).parent.parent.parent / "protocols" / f"{filename}.yaml"
+            user = st.session_state.get("user")
+            root = Path(__file__).parent.parent.parent / "protocols"
+            
+            if user:
+                user_dir = root / user
+                if not user_dir.exists():
+                    user_dir.mkdir(parents=True)
+                filepath = user_dir / f"{filename}.yaml"
+            else:
+                filepath = root / f"{filename}.yaml"
+                
             with open(filepath, "w") as f:
                 f.write(yaml_str)
             st.success(f"Saved to {filepath}")
