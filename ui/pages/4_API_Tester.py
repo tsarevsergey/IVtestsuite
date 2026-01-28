@@ -61,9 +61,23 @@ ENDPOINTS = {
             "params": {
                 "start": {"type": "float", "default": 0.0},
                 "stop": {"type": "float", "default": 8.0},
-                "steps": {"type": "int", "default": 11, "min": 2, "max": 1000},
+                "points": {"type": "int", "default": 11, "min": 2, "max": 1000},
                 "compliance": {"type": "float", "default": 0.01, "min": 0.0},
                 "delay": {"type": "float", "default": 0.05, "min": 0.0},
+                "scale": {"type": "select", "options": ["linear", "log"], "default": "linear"},
+                "direction": {"type": "select", "options": ["forward", "backward"], "default": "forward"},
+                "sweep_type": {"type": "select", "options": ["single", "double"], "default": "single"},
+            }
+        },
+        "List Sweep": {
+            "method": "POST",
+            "path": "/smu/list-sweep",
+            "params": {
+                "points": {"type": "list_float", "default": "0,1,2,5,8,0"},
+                "source_mode": {"type": "select", "options": ["VOLT", "CURR"], "default": "VOLT"},
+                "compliance": {"type": "float", "default": 0.1, "min": 0.0},
+                "nplc": {"type": "float", "default": 1.0, "min": 0.01, "max": 100.0},
+                "delay": {"type": "float", "default": 0.1, "min": 0.0},
             }
         },
     },
@@ -154,33 +168,38 @@ if endpoint["params"]:
         elif p_type == "list_int":
             val_str = col.text_input(param_name, value=p_default)
             payload[param_name] = [int(x.strip()) for x in val_str.split(",") if x.strip()]
+        elif p_type == "list_float":
+            val_str = col.text_input(param_name, value=p_default)
+            payload[param_name] = [float(x.strip()) for x in val_str.split(",") if x.strip()]
 
-# --- Tabs: Request Preview & Execute ---
-tab_preview, tab_execute = st.tabs(["📄 Request Preview", "🚀 Execute Request"])
+# --- Results: Request Preview & Execute ---
+col_prev, col_exec = st.columns(2)
 
-with tab_preview:
-    st.markdown("### Endpoint URL")
+with col_prev:
+    st.subheader("📄 Request Preview")
+    st.markdown("**Endpoint URL**")
     st.code(f"{BACKEND_URL}{path}")
     
-    st.markdown("### HTTP Method")
+    st.markdown("**HTTP Method**")
     st.code(method)
     
     if method == "POST":
-        st.markdown("### JSON Payload")
+        st.markdown("**JSON Payload**")
         st.json(payload)
     else:
         st.info("GET requests do not have a JSON payload.")
 
-with tab_execute:
+with col_exec:
+    st.subheader("🚀 Execute Request")
     if st.button("Execute Request", type="primary"):
         with st.spinner("Executing..."):
             response = req(method, path, payload if method == "POST" else None)
             
-            st.markdown("### Response Status")
+            st.markdown("**Response Status**")
             if response.get("success", True):
                 st.success("Success")
             else:
                 st.error("Error")
             
-            st.markdown("### JSON Response")
+            st.markdown("**JSON Response**")
             st.json(response)

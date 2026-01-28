@@ -10,6 +10,7 @@ import time
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
 import threading
+import numpy as np
 
 # Add parent directory to path for SMUController import
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -278,30 +279,65 @@ class SMUClient:
         steps: int,
         compliance: float = 0.01,
         delay: float = 0.05,
+        scale: str = "linear",
+        direction: str = "forward",
+        sweep_type: str = "single",
         source_mode: str = "VOLT"
     ) -> Dict[str, Any]:
         """
-        Execute a voltage sweep and measure current.
+        Execute an advanced IV sweep.
         
         Args:
-            start: Starting voltage
-            stop: Ending voltage
-            steps: Number of measurement points
+            start: Start voltage
+            stop: Stop voltage
+            steps: Number of points (one way)
             compliance: Current compliance (A)
             delay: Delay between points (s)
-            source_mode: "VOLT" for voltage sweep
-        
-        Returns:
-            Dict with results list containing {set_voltage, voltage, current}
+            scale: "linear" or "log"
+            direction: "forward" (start->stop) or "backward" (stop->start)
+            sweep_type: "single" or "double" (forward/backward + back)
+            source_mode: "VOLT" (currently only supporting voltage sweeps)
         """
         if not self._smu or not self._status.connected:
             return {"success": False, "message": "Not connected"}
         
-        import numpy as np
+        # Point generation logic
         
         with self._op_lock:
             try:
-                points = np.linspace(start, stop, steps).tolist()
+                # 1. Handle Direction
+                s_val = start if direction == "forward" else stop
+                e_val = stop if direction == "forward" else start
+                
+                # 2. Generate Base Points
+                if scale.lower() == "log":
+                    # Avoid log(0)
+                    s_log = s_val if s_val != 0 else (1e-6 if e_val > 0 else -1e-6)
+                    e_log = e_val if e_val != 0 else (1e-6 if s_val > 0 else -1e-6)
+                    
+                    # Handle sign
+                    points = np.logspace(
+                        np.log10(abs(s_log)), 
+                        np.log10(abs(e_log)), 
+                        steps
+                    )
+                    if s_log < 0 or (s_log == 0 and e_log < 0):
+                        points = -points
+                else:
+                    points = np.linspace(s_val, e_val, steps)
+                
+                # 3. Ensure precise peak/endpoint
+                if len(points) > 0:
+                    points[-1] = e_val
+                
+                # 4. Handle Sweep Type (Double)
+                if sweep_type.lower() == "double":
+                    # Concatenate the first sweep with its reverse (excluding the last point to avoid duplication)
+                    points = np.concatenate([points, points[::-1][1:]])
+                    # Ensure start value is reached exactly at the end of the return trip
+                    points[-1] = s_val
+                
+                points = points.tolist()
                 results = []
                 
                 # Configure
@@ -309,10 +345,9 @@ class SMUClient:
                 self._smu.set_compliance(compliance, "CURR")
                 self._smu.enable_output()
                 
-                logger.info(f"Starting IV sweep: {start}V to {stop}V, {steps} points")
+                logger.info(f"Starting {scale} {sweep_type} sweep ({direction}): {s_val}V to {e_val}V, {len(points)} total points")
                 
                 for i, v in enumerate(points):
-                    # Check for abort
                     if run_manager.is_abort_requested():
                         logger.warning("IV sweep aborted by user")
                         break
@@ -336,6 +371,76 @@ class SMUClient:
                 
             except Exception as e:
                 logger.error(f"IV sweep error: {e}")
+                # Safety: try to disable output
+                try:
+                    self._smu.disable_output()
+                except:
+                    pass
+                return {"success": False, "message": str(e)}
+
+
+    def run_list_sweep(
+        self,
+        points: List[float],
+        source_mode: str = "VOLT",
+        compliance: float = 0.1,
+        nplc: float = 1.0,
+        delay: float = 0.1
+    ) -> Dict[str, Any]:
+        """
+        Execute a sweep across an arbitrary list of points.
+        
+        Args:
+            points: List of voltage or current points
+            source_mode: "VOLT" or "CURR"
+            compliance: Compliance limit (A for VOLT mode, V for CURR mode)
+            nplc: Integration time
+            delay: Delay between points (s)
+        """
+        if not self._smu or not self._status.connected:
+            return {"success": False, "message": "Not connected"}
+        
+        with self._op_lock:
+            try:
+                results = []
+                
+                # Configure
+                self._smu.set_source_mode(source_mode)
+                comp_type = "CURR" if source_mode == "VOLT" else "VOLT"
+                self._smu.set_compliance(compliance, comp_type)
+                self._smu.set_nplc(nplc)
+                self._smu.enable_output()
+                
+                logger.info(f"Starting List Sweep: {len(points)} points, mode={source_mode}")
+                
+                for i, v in enumerate(points):
+                    if run_manager.is_abort_requested():
+                        logger.warning("List sweep aborted by user")
+                        break
+                    
+                    if source_mode == "VOLT":
+                        self._smu.set_voltage(v)
+                    else:
+                        self._smu.set_current(v)
+                        
+                    time.sleep(delay)
+                    meas = self._smu.measure()
+                    meas["set_value"] = v
+                    results.append(meas)
+                
+                self._smu.disable_output()
+                
+                logger.info(f"List sweep complete: {len(results)} points collected")
+                
+                return {
+                    "success": True,
+                    "results": results,
+                    "points": len(results),
+                    "aborted": run_manager.is_abort_requested()
+                }
+                
+            except Exception as e:
+                logger.error(f"List sweep error: {e}")
                 # Safety: try to disable output
                 try:
                     self._smu.disable_output()

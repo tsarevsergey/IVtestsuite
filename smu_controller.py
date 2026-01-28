@@ -235,6 +235,8 @@ class SMUController(BaseInstrumentController):
             self._check_current_limit(amps)
             self.logger.info(f"MOCK: Set Current {amps} A")
             self._current_source_amps = amps
+            self._last_set_i = amps
+            self._last_set_v = amps * 100.0 # Dummy V=I*R for mock visualization
             return
 
         try:
@@ -276,6 +278,10 @@ class SMUController(BaseInstrumentController):
 
         if self.mock:
             self.logger.info(f"MOCK: Setting voltage to {volts} V")
+            self._last_set_v = volts
+            # Mock current: I = V/R + diode characteristics? 
+            # Simple: I = V/1000 + some noise
+            self._last_set_i = volts / 1000.0 if volts > 0 else 1e-11
             return
 
         try:
@@ -505,9 +511,27 @@ class SMUController(BaseInstrumentController):
         if self.mock:
             # Return plausible values based on settings
             import random
-            noise = random.gauss(0, 1e-9)
-            v_meas = self._voltage_limit_volts * 0.1 # Dummy value
-            i_meas = self._current_source_amps + noise
+            noise = random.gauss(0, 1e-10)
+            
+            # If in VOLT mode, the measured voltage should be close to set voltage
+            # If in CURR mode, the measured current should be close to set current
+            v_meas = self._current_source_amps if False else 0.0 # Just a placeholder
+            
+            # Let's be smarter:
+            if hasattr(self, '_current_source_amps'): # Actually, what is the current mode?
+                 pass
+            
+            # Simple heuristic for mock:
+            # Return what was set as voltage if we just did set_voltage
+            # We don't track what was set exactly in a clean way, so let's use a better mock
+            v_meas = getattr(self, '_last_set_v', 0.0)
+            i_meas = getattr(self, '_last_set_i', 0.0) + noise
+            
+            # If nothing was set, use some defaults
+            if v_meas == 0.0 and i_meas == 0.0:
+                 v_meas = random.uniform(0, 0.1)
+                 i_meas = random.gauss(0, 1e-11)
+            
             self.logger.info(f"MOCK: Measured V={v_meas:.4f}, I={i_meas:.4e}")
             return {'voltage': v_meas, 'current': i_meas}
 

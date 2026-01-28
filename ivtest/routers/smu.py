@@ -3,7 +3,7 @@ SMU Control API Endpoints.
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 
 from ..smu_client import smu_client, DEFAULT_SMU_ADDRESS
 from ..logging_config import get_logger
@@ -40,9 +40,28 @@ class OutputRequest(BaseModel):
 class SweepRequest(BaseModel):
     start: float = Field(..., description="Start voltage")
     stop: float = Field(..., description="Stop voltage")
-    steps: int = Field(default=11, ge=2, le=1000, description="Number of points")
+    points: int = Field(default=11, ge=2, le=1000, description="Number of points (one way)")
     compliance: float = Field(default=0.01, gt=0, description="Current compliance (A)")
     delay: float = Field(default=0.05, ge=0, description="Delay between points (s)")
+    scale: Literal["linear", "log"] = Field(default="linear", description="Point distribution")
+    direction: Literal["forward", "backward"] = Field(default="forward", description="Sweep direction")
+    sweep_type: Literal["single", "double"] = Field(default="single", description="Sweep type")
+
+
+class ListSweepRequest(BaseModel):
+    points: List[float] = Field(..., description="List of voltage or current points")
+    source_mode: Literal["VOLT", "CURR"] = Field(default="VOLT", description="Source mode")
+    compliance: float = Field(default=0.1, gt=0, description="Compliance limit")
+    nplc: float = Field(default=1.0, gt=0, le=100, description="Integration time")
+    delay: float = Field(default=0.1, ge=0, description="Delay between points (s)")
+
+
+class ListSweepResponse(BaseModel):
+    success: bool
+    results: Optional[List[Dict[str, Any]]] = None
+    points: Optional[int] = None
+    aborted: Optional[bool] = None
+    message: Optional[str] = None
 
 
 class SMUStatusResponse(BaseModel):
@@ -156,16 +175,37 @@ async def measure():
 @router.post("/sweep", response_model=SweepResponse)
 async def run_sweep(request: SweepRequest):
     """
-    Execute an IV sweep.
+    Execute an advanced IV sweep.
     
-    Sweeps voltage from start to stop, measuring current at each point.
+    Sweeps voltage with configurable direction, scale, and type.
     """
-    logger.info(f"Sweep request: {request.start}V to {request.stop}V, {request.steps} points")
+    logger.info(f"Sweep request: {request.start}V to {request.stop}V, scale={request.scale}, dir={request.direction}, type={request.sweep_type}")
     result = smu_client.run_iv_sweep(
         start=request.start,
         stop=request.stop,
-        steps=request.steps,
+        steps=request.points,
         compliance=request.compliance,
-        delay=request.delay
+        delay=request.delay,
+        scale=request.scale,
+        direction=request.direction,
+        sweep_type=request.sweep_type
     )
     return SweepResponse(**result)
+
+
+@router.post("/list-sweep", response_model=ListSweepResponse)
+async def run_list_sweep(request: ListSweepRequest):
+    """
+    Execute a sweep across an arbitrary list of points.
+    
+    Supports voltage or current sweeps.
+    """
+    logger.info(f"List sweep request: {len(request.points)} points, mode={request.source_mode}")
+    result = smu_client.run_list_sweep(
+        points=request.points,
+        source_mode=request.source_mode,
+        compliance=request.compliance,
+        nplc=request.nplc,
+        delay=request.delay
+    )
+    return ListSweepResponse(**result)
