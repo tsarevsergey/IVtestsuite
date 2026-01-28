@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 import copy
 
 from .logging_config import get_logger
-from .run_manager import run_manager
+from .run_manager import run_manager, RunState
 from .smu_client import smu_client, DEFAULT_SMU_ADDRESS
 from .arduino_relays import relay_controller
 
@@ -99,8 +99,14 @@ class ProtocolEngine:
             self._history = []
         step_results = []
         
-        logger.info(f"Starting protocol execution: {len(steps)} steps")
-        
+        # Ensure we are in a fresh state to clear abort flags and start duration
+        if run_manager.state in [RunState.ABORTED, RunState.ERROR]:
+            run_manager.reset()
+        if run_manager.state == RunState.IDLE:
+            run_manager.arm()
+        if run_manager.state == RunState.ARMED:
+            run_manager.start()
+            
         try:
             for i, step in enumerate(steps):
                 # Check for abort
@@ -167,9 +173,23 @@ class ProtocolEngine:
             )
         finally:
             self._running = False
+            self._perform_safety_cleanup()
+            
+            # Automatically return to IDLE if we were the ones who started it
+            # This is safe because RunManager.complete() only transitions if currently RUNNING
+            run_manager.complete()
     
     def _execute_step(self, index: int, step: Dict[str, Any]) -> StepResult:
         """Execute a single protocol step."""
+        # Double check abort before starting any action
+        if run_manager.is_abort_requested():
+            return StepResult(
+                step_index=index,
+                action=step.get("action", ""),
+                success=False,
+                error="Aborted before execution"
+            )
+            
         action = step.get("action", "")
         params = step.get("params", {})
         
@@ -282,9 +302,9 @@ class ProtocolEngine:
     def _action_wait(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Wait for specified seconds."""
         seconds = params.get("seconds", 1.0)
-        logger.info(f"Waiting {seconds}s...")
-        time.sleep(seconds)
-        return {"success": True, "waited": seconds}
+        logger.info(f"Waiting {seconds}s (interruptible)...")
+        run_manager.sleep(seconds)
+        return {"success": True, "waited": seconds, "aborted": run_manager.is_abort_requested()}
     
     def _action_smu_connect(self, params: Dict[str, Any]) -> Dict[str, Any]:
         address = params.get("address", "") or DEFAULT_SMU_ADDRESS
@@ -485,6 +505,26 @@ class ProtocolEngine:
         """Return a thread-safe copy of captured data."""
         with self._data_lock:
             return copy.deepcopy(self._captured)
+
+    def _perform_safety_cleanup(self):
+        """
+        Guaranteed safety routine to ensure hardware is in a safe state.
+        Called at the end of every protocol run.
+        """
+        logger.info("Performing mandatory safety cleanup...")
+        try:
+            # 1. Disable SMU output
+            self._action_smu_output({"enabled": False})
+        except Exception as e:
+            logger.error(f"Safety cleanup (SMU) failed: {e}")
+            
+        try:
+            # 2. Open all relays
+            self._action_relays_all_off({})
+        except Exception as e:
+            logger.error(f"Safety cleanup (Relays) failed: {e}")
+            
+        logger.info("Safety cleanup complete.")
 
 
 # Global singleton instance

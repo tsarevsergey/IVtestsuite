@@ -242,19 +242,39 @@ if st.session_state.traces:
         fig.update_layout(height=500, title="IV Characteristics")
         
         # KEY STABILITY: With st.rerun(), we can use a constant key safely!
-        # Streamlit matches the key across runs and updates it efficiently.
         plot_ph.plotly_chart(fig, use_container_width=True, key="live_iv_plot")
     else:
         plot_ph.warning("Waiting for valid data structure...")
+elif not st.session_state.running:
+    # Only show this info if we aren't currently scanning
+    plot_ph.info("No data to plot. Select a protocol and click 'RUN PROTOCOL' to start.")
 else:
-    plot_ph.info("No data to plot. Run a protocol.")
+    # Silently wait during scan start
+    plot_ph.empty()
 
 # --- Execution Logic (Rerun Loop) ---
 if st.session_state.running:
-    # Stop Button
-    if st.button("STOP", type="secondary"):
-        requests.post(f"{BACKEND_URL}/protocol/abort")
-        st.toast("Aborting...")
+    # Stop Button - Using custom CSS to make it red
+    st.markdown("""
+        <style>
+        div.stButton > button {
+            border-radius: 5px;
+        }
+        /* Style the STOP SCAN button specifically using its identifier if possible, 
+           or just all primary buttons in this sidebar/context */
+        div[data-testid="stVerticalBlock"] > div:has(button:contains("STOP SCAN")) button {
+            background-color: #ff4b4b !important;
+            color: white !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    if st.button("STOP SCAN", type="primary", use_container_width=True):
+        # Call the global /abort endpoint as requested
+        requests.post(f"{BACKEND_URL}/abort")
+        st.toast("Abort requested...")
+        st.session_state.running = False
+        st.rerun()
     
     state = "UNKNOWN"
     run_duration = 0
@@ -307,11 +327,6 @@ if st.session_state.running:
         pass # Ignore fetch errors
 
     # 3. Check Finish Condition
-    # We stop if:
-    # A) Backend says COMPLETE or ERROR
-    # B) Backend is IDLE AND we haven't seen new data for > 15 seconds (and we've started)
-    # C) Total safety timeout (5 mins)
-    
     last_data_gap = time.time() - st.session_state.get("last_data_time", st.session_state.run_start_time)
     
     finished = False

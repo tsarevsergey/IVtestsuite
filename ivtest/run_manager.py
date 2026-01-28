@@ -5,6 +5,7 @@ States: IDLE → ARMED → RUNNING → ABORTED / ERROR → IDLE
 
 Thread-safe singleton pattern for global access throughout the application.
 """
+import time
 import threading
 from enum import Enum
 from typing import Optional, Callable, List
@@ -116,12 +117,15 @@ class RunManager:
             if new_state == RunState.RUNNING:
                 self._run_start_time = datetime.now()
                 self._abort_requested.clear()
+            elif new_state == RunState.ARMED:
+                self._abort_requested.clear()
             elif new_state == RunState.ERROR:
                 self._error_message = error_msg
             elif new_state == RunState.IDLE:
                 self._run_start_time = None
                 self._error_message = None
-                self._abort_requested.clear()
+                # CRITICAL: We DO NOT clear the abort flag here. 
+                # It stays set until ARMED or RUNNING to ensure engines see it.
             
             logger.info(f"State transition: {old_state.value} → {new_state.value}")
             return True
@@ -164,7 +168,8 @@ class RunManager:
             if self._state in [RunState.ABORTED, RunState.ARMED, RunState.IDLE]:
                 self._state = RunState.IDLE
                 self._run_start_time = None
-                self._abort_requested.clear()  # Ensure flag is cleared
+                # We do NOT clear the flag here. 
+                # It must persist until a new run starts to stop the engines.
                 logger.info(f"State transition: → IDLE (abort complete)")
         
         return True
@@ -185,6 +190,20 @@ class RunManager:
     def is_abort_requested(self) -> bool:
         """Check if abort has been requested (for long-running operations)."""
         return self._abort_requested.is_set()
+    
+    def sleep(self, seconds: float, step: float = 0.1):
+        """
+        Responsive wait that checks the abort flag.
+        
+        Args:
+            seconds: Total time to wait
+            step: Interval between abort checks
+        """
+        start = time.time()
+        while time.time() - start < seconds:
+            if self.is_abort_requested():
+                break
+            time.sleep(min(step, seconds - (time.time() - start)))
     
     def register_shutdown_callback(self, callback: Callable) -> None:
         """Register a callback to be called on abort/shutdown."""

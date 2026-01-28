@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from smu_controller import SMUController, InstrumentState
 from .logging_config import get_logger
-from .run_manager import run_manager
+from .run_manager import run_manager, RunState
 
 logger = get_logger("smu_client")
 
@@ -306,6 +306,16 @@ class SMUClient:
         # Point generation logic
         # Point generation logic
         
+        # Automatically move to RUNNING if IDLE or ARMED to clear abort flag and start duration
+        auto_started = False
+        if run_manager.state in [RunState.ABORTED, RunState.ERROR]:
+            run_manager.reset()
+        if run_manager.state == RunState.IDLE:
+            run_manager.arm()
+        if run_manager.state == RunState.ARMED:
+            run_manager.start()
+            auto_started = True
+            
         with self._op_lock:
             try:
                 # 1. Handle Direction
@@ -359,12 +369,12 @@ class SMUClient:
                         break
                     
                     self._smu.set_voltage(v)
-                    time.sleep(delay)
+                    run_manager.sleep(delay)
                     meas = self._smu.measure()
                     meas["set_voltage"] = v
                     results.append(meas)
                 
-                if not keep_output_on:
+                if not keep_output_on or run_manager.is_abort_requested():
                     self._smu.disable_output()
                 
                 logger.info(f"IV sweep complete: {len(results)} points collected")
@@ -384,6 +394,10 @@ class SMUClient:
                 except:
                     pass
                 return {"success": False, "message": str(e)}
+            finally:
+                # Automatically return to IDLE if we were the ones who started it
+                if auto_started:
+                    run_manager.complete()
 
 
     def run_list_sweep(
@@ -407,6 +421,16 @@ class SMUClient:
         if not self._smu or not self._status.connected:
             return {"success": False, "message": "Not connected"}
         
+        # Automatically move to RUNNING if IDLE or ARMED to clear abort flag and start duration
+        auto_started = False
+        if run_manager.state in [RunState.ABORTED, RunState.ERROR]:
+            run_manager.reset()
+        if run_manager.state == RunState.IDLE:
+            run_manager.arm()
+        if run_manager.state == RunState.ARMED:
+            run_manager.start()
+            auto_started = True
+            
         with self._op_lock:
             try:
                 results = []
@@ -430,7 +454,7 @@ class SMUClient:
                     else:
                         self._smu.set_current(v)
                         
-                    time.sleep(delay)
+                    run_manager.sleep(delay)
                     meas = self._smu.measure()
                     meas["set_value"] = v
                     results.append(meas)
@@ -454,6 +478,10 @@ class SMUClient:
                 except:
                     pass
                 return {"success": False, "message": str(e)}
+            finally:
+                # Automatically return to IDLE if we were the ones who started it
+                if auto_started:
+                    run_manager.complete()
 
 
 # Global singleton instance
