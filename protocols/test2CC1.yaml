@@ -1,0 +1,128 @@
+name: test2CC1
+description: Batch sweep on pixels [1, 2, 3]. dark_first. SteadyState=False.
+version: 2.0
+steps:
+- action: smu/connect
+  params:
+    mock: false
+    channel: 1
+- action: smu/connect
+  params:
+    mock: false
+    channel: 2
+- action: relays/connect
+  params:
+    mock: true
+- action: relays/all-off
+- action: smu/output
+  params:
+    channel: 1
+    enabled: false
+- action: control/loop
+  params:
+    variable: pixel
+    sequence: &id001
+    - 1
+    - 2
+    - 3
+  steps:
+  - action: relays/pixel
+    params:
+      pixel_id: $pixel
+  - action: wait
+    params:
+      seconds: 0.5
+  - action: smu/configure
+    params:
+      channel: 2
+      compliance: 0.1
+      nplc: 5.0
+  - action: smu/source-mode
+    params:
+      channel: 2
+      mode: VOLT
+  - action: smu/sweep
+    params:
+      channel: 2
+      start: 0.0
+      stop: 1.0
+      points: 21
+      delay: 0.05
+      compliance: 0.1
+      sweep_type: single
+      scale: linear
+      direction: forward
+      keep_output_on: false
+    capture_as: dark_iv_data
+  - action: data/save
+    params:
+      data: $dark_iv_data
+      filename: CC1_{$pixel}DARK
+      folder: ./data
+- action: smu/configure
+  params:
+    channel: 1
+    compliance: 5.0
+    nplc: 5.0
+- action: smu/source-mode
+  params:
+    channel: 1
+    mode: CURR
+- action: smu/set
+  params:
+    channel: 1
+    value: 0.001
+- action: smu/output
+  params:
+    channel: 1
+    enabled: true
+- action: wait
+  params:
+    seconds: 2.0
+- action: control/loop
+  params:
+    variable: pixel
+    sequence: *id001
+  steps:
+  - action: relays/pixel
+    params:
+      pixel_id: $pixel
+  - action: wait
+    params:
+      seconds: 0.5
+  - action: smu/configure
+    params:
+      channel: 2
+      compliance: 0.1
+      nplc: 5.0
+  - action: smu/source-mode
+    params:
+      channel: 2
+      mode: VOLT
+  - action: smu/sweep
+    params:
+      channel: 2
+      start: 0.0
+      stop: 1.0
+      points: 21
+      delay: 0.05
+      compliance: 0.1
+      sweep_type: single
+      scale: linear
+      direction: forward
+      keep_output_on: true
+    capture_as: light_iv_data
+  - action: data/save
+    params:
+      data: $light_iv_data
+      filename: CC1_{$pixel}LIGHT
+      folder: ./data
+- action: smu/output
+  params:
+    channel: 2
+    enabled: false
+- action: smu/output
+  params:
+    channel: 1
+    enabled: false
+- action: relays/all-off

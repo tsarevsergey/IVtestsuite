@@ -61,25 +61,26 @@ def get_protocol_content(proto_id):
         st.error(f"Error reading protocol file: {e}")
     return None
 
-def find_step(steps, target_action):
-    """Recursively find the first step with given action."""
+def find_all_steps(steps, target_action):
+    """Recursively find all steps with given action."""
+    found = []
     for step in steps:
         if step.get("action") == target_action:
-            return step
+            found.append(step)
         if "steps" in step:
-            res = find_step(step["steps"], target_action)
-            if res: return res
-    return None
+            found.extend(find_all_steps(step["steps"], target_action))
+    return found
 
-def find_loop(steps, target_var="pixel"):
+def find_all_loops(steps, target_var="pixel"):
+    """Recursively find all loops iterating over the target variable."""
+    found = []
     for step in steps:
         if step.get("action") == "control/loop":
             if step.get("params", {}).get("variable") == target_var:
-                return step
+                found.append(step)
         if "steps" in step:
-            res = find_loop(step["steps"], target_var)
-            if res: return res
-    return None
+            found.extend(find_all_loops(step["steps"], target_var))
+    return found
 
 # --- Sidebar ---
 st.sidebar.header("Protocol Selection")
@@ -196,24 +197,39 @@ with st.expander("Run Parameters (Overrides)", expanded=True):
     import copy
     new_steps = copy.deepcopy(new_yaml.get("steps", []))
     
-    # 1. Filename / Folder
-    # Look for data/save
-    save_step = find_step(new_steps, "data/save")
-    if save_step:
-        current_fname = save_step["params"].get("filename", "data")
-        current_folder = save_step["params"].get("folder", "./data")
+    save_steps = find_all_steps(new_steps, "data/save")
+    if save_steps:
+        # Use first step as default for UI reference
+        current_fname_sample = save_steps[0]["params"].get("filename", "data")
+        current_folder = save_steps[0]["params"].get("folder", "./data")
         
-        with col1:
-            new_fname = st.text_input("Filename Pattern", current_fname, help="Use {$pixel} for variables")
-            save_step["params"]["filename"] = new_fname
+        st.markdown("#### Filename & Folder")
+        c_mode = st.radio("Filename Override Mode", ["Find & Replace", "Literal (Global)"], horizontal=True)
+        
+        if c_mode == "Literal (Global)":
+            with col1:
+                new_fname = st.text_input("New Filename (Global)", current_fname_sample, help="Updates ALL save steps to this exact string. Use {$pixel} for variables.")
+                for step in save_steps:
+                    step["params"]["filename"] = new_fname
+        else:
+            with col1:
+                s_find = st.text_input("Find string", "AA1")
+                s_replace = st.text_input("Replace with", "BB1")
+                if st.checkbox("Apply Replacement", value=True):
+                    for step in save_steps:
+                        old_f = step["params"].get("filename", "")
+                        step["params"]["filename"] = old_f.replace(s_find, s_replace)
+        
         with col2:
-            new_folder = st.text_input("Data Folder", current_folder)
-            save_step["params"]["folder"] = new_folder
+            new_folder = st.text_input("Data Folder (Global)", current_folder)
+            for step in save_steps:
+                step["params"]["folder"] = new_folder
     
-    # 2. Pixels (Loop)
-    loop_step = find_loop(new_steps, "pixel")
-    if loop_step:
-        current_seq = loop_step["params"].get("sequence", [])
+    # 2. Pixels (Loops)
+    loop_steps = find_all_loops(new_steps, "pixel")
+    if loop_steps:
+        # Use first loop as default for UI
+        current_seq = loop_steps[0]["params"].get("sequence", [])
         # Format as string
         if isinstance(current_seq, list):
             seq_str = ",".join(map(str, current_seq))
@@ -221,35 +237,48 @@ with st.expander("Run Parameters (Overrides)", expanded=True):
             seq_str = "1-6"
             
         with col1:
-            new_seq_str = st.text_input("Pixels (list/range)", seq_str)
+            new_seq_str = st.text_input("Pixels (Global Override)", seq_str, help="Updates ALL loops with the 'pixel' variable.")
             # Parse logic
             try:
                 pixels = []
                 for part in new_seq_str.split(','):
                     part = part.strip()
-                    if '-' in part:
-                        s, e = map(int, part.split('-'))
-                        pixels.extend(range(s, e+1))
-                    else:
-                        pixels.append(int(part))
-                loop_step["params"]["sequence"] = sorted(list(set(pixels)))
+                    if part:
+                        if '-' in part:
+                            s, e = map(int, part.split('-'))
+                            pixels.extend(range(s, e+1))
+                        else:
+                            pixels.append(int(part))
+                final_pixels = sorted(list(set(pixels)))
+                for step in loop_steps:
+                    step["params"]["sequence"] = final_pixels
             except:
                 st.error("Invalid pixel format")
                 
     # 3. Sweep Params
-    sweep_step = find_step(new_steps, "smu/sweep")
-    if sweep_step:
-        p = sweep_step["params"]
-        st.markdown("#### Sweep Settings")
+    sweep_steps = find_all_steps(new_steps, "smu/sweep")
+    if sweep_steps:
+        # Use first sweep as default for UI
+        p_ref = sweep_steps[0]["params"]
+        st.markdown("#### Sweep Settings (Global Override)")
         c1, c2, c3, c4 = st.columns(4)
+        
         with c1:
-            p["start"] = st.number_input("Start (V)", value=float(p.get("start", 0.0)))
+            new_start = st.number_input("Start (V)", value=float(p_ref.get("start", 0.0)))
         with c2:
-            p["stop"] = st.number_input("Stop (V)", value=float(p.get("stop", 1.0)))
+            new_stop = st.number_input("Stop (V)", value=float(p_ref.get("stop", 1.0)))
         with c3:
-            p["points"] = st.number_input("Points", value=int(p.get("points", 11)))
+            new_pts = st.number_input("Points", value=int(p_ref.get("points", 11)))
         with c4:
-            p["compliance"] = st.number_input("Compl. (A)", value=float(p.get("compliance", 0.1)), format="%.1e")
+            new_comp = st.number_input("Compl. (A)", value=float(p_ref.get("compliance", 0.1)), format="%.1e")
+            
+        # Apply to all
+        for step in sweep_steps:
+            p = step["params"]
+            p["start"] = new_start
+            p["stop"] = new_stop
+            p["points"] = new_pts
+            p["compliance"] = new_comp
             
 # --- Execution & Plotting ---
 st.divider()
@@ -303,7 +332,8 @@ with col_status:
         progress = 0
         if st.session_state.running:
             # Estimate progress based on traces vs expected pixels if loop is used
-            expected_pixels = len(loop_step["params"]["sequence"]) if loop_step else 1
+            # Use the first loop found as a reference for expected count
+            expected_pixels = len(loop_steps[0]["params"]["sequence"]) if loop_steps else 1
             progress = min(100, int((len(st.session_state.traces) / expected_pixels) * 100))
         st.markdown(f"""<div class="metric-card"><div class="metric-label">Progress</div><div class="metric-value">{progress}%</div></div>""", unsafe_allow_html=True)
 

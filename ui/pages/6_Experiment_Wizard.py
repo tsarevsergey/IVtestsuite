@@ -15,6 +15,12 @@ st.markdown("Generate complex experiment protocols from high-level templates.")
 
 # --- Template Definitions ---
 
+TEMPLATE_DESCRIPTIONS = {
+    "Multipixel IV Sweep": "Perform a standard IV sweep on a series of pixels sequentially. Each pixel is connected via relay, swept, and the data is saved.",
+    "Dark -> Light (Batch)": "Batch operation: Firstly scans ALL specified pixels in the dark (light source OFF), then scans ALL pixels again with the light source ON. This minimizes relay switching and light source stabilization waits.",
+    "Light -> Dark (Batch)": "Batch operation: Firstly scans ALL specified pixels with the light source ON, then scans ALL pixels again in the dark. Useful for measuring decay or stabilization effects."
+}
+
 # Helper to parse pixel string
 def parse_pixel_string(pixel_str: str) -> List[int]:
     pixels = []
@@ -44,6 +50,7 @@ def generate_multipixel_sweep(params: Dict[str, Any]) -> Dict[str, Any]:
     sweep_type = params.get("sweep_type", "double") # single, double
     scale = params.get("scale", "linear")
     direction = params.get("direction", "forward")
+    keep_output_on = params.get("keep_output_on", False)
     
     # Construct Protocol
     protocol = {
@@ -99,7 +106,7 @@ def generate_multipixel_sweep(params: Dict[str, Any]) -> Dict[str, Any]:
                             "scale": scale,
                             "direction": direction,
                             "compliance": compliance,
-                            "keep_output_on": True
+                            "keep_output_on": keep_output_on
                         },
                         "capture_as": "iv_data"
                     },
@@ -108,7 +115,7 @@ def generate_multipixel_sweep(params: Dict[str, Any]) -> Dict[str, Any]:
                         "params": {
                             "data": "$iv_data",
                             # String interpolation for filename
-                            "filename": f"{sample_name}_pixel_{{$pixel}}", 
+                            "filename": f"{sample_name}_{{$pixel}}", 
                             "folder": "./data"
                         }
                     }
@@ -117,7 +124,11 @@ def generate_multipixel_sweep(params: Dict[str, Any]) -> Dict[str, Any]:
             # 4. Cleanup
             {
                 "action": "smu/output",
-                "params": {"enabled": False}
+                "params": {"enabled": False, "channel": 1}
+            },
+            {
+                "action": "smu/output",
+                "params": {"enabled": False, "channel": 2}
             },
             {
                 "action": "relays/all-off"
@@ -167,9 +178,10 @@ def generate_dark_light_sweep_batch(params: Dict[str, Any], order: str = "dark_f
     if steady_points < 1: steady_points = 1
     
     wait_time = params.get("wait_time", 0.5) # Stabilization wait
+    keep_output_on = params.get("keep_output_on", False)
     
     # --- Helper to generate a measurement sequence (Dark or Light) ---
-    def make_loop_step(is_light: bool):
+    def make_loop_step(is_light: bool, is_last: bool = False):
         mode_name = "light" if is_light else "dark"
         hold_v = light_hold_v if is_light else dark_hold_v
         
@@ -220,7 +232,7 @@ def generate_dark_light_sweep_batch(params: Dict[str, Any], order: str = "dark_f
                     "start": iv_start, "stop": iv_stop, "points": iv_points,
                     "delay": iv_delay, "compliance": compliance,
                     "sweep_type": sweep_type, "scale": scale, "direction": direction,
-                    "keep_output_on": False # Turn OFF after pixel done
+                    "keep_output_on": keep_output_on if is_last else False 
                 },
                 "capture_as": f"{mode_name}_iv_data"
             },
@@ -228,7 +240,7 @@ def generate_dark_light_sweep_batch(params: Dict[str, Any], order: str = "dark_f
                 "action": "data/save",
                 "params": {
                     "data": f"${mode_name}_iv_data",
-                    "filename": f"{sample_name}_pixel_{{$pixel}}_{mode_name}",
+                    "filename": f"{sample_name}_{{$pixel}}{mode_name.upper()}",
                     "folder": "./data"
                 }
             }
@@ -250,10 +262,10 @@ def generate_dark_light_sweep_batch(params: Dict[str, Any], order: str = "dark_f
     ]
     
     # Define Mode Blocks
+    # Define Mode Blocks (Pre-loop setup)
     block_dark = [
         # Ensure Light OFF
         { "action": "smu/output", "params": {"channel": light_ch, "enabled": False} },
-        make_loop_step(is_light=False)
     ]
     
     block_light = [
@@ -263,20 +275,22 @@ def generate_dark_light_sweep_batch(params: Dict[str, Any], order: str = "dark_f
         { "action": "smu/set", "params": {"channel": light_ch, "value": light_current} },
         { "action": "smu/output", "params": {"channel": light_ch, "enabled": True} },
         { "action": "wait", "params": {"seconds": 2.0} }, # Warmup
-        make_loop_step(is_light=True),
-        { "action": "smu/output", "params": {"channel": light_ch, "enabled": False} } # Light OFF
     ]
     
     if order == "dark_first":
         steps.extend(block_dark)
+        steps.append(make_loop_step(is_light=False))
         steps.extend(block_light)
+        steps.append(make_loop_step(is_light=True, is_last=True))
     else:
         steps.extend(block_light)
+        steps.append(make_loop_step(is_light=True))
         steps.extend(block_dark)
+        steps.append(make_loop_step(is_light=False, is_last=True))
     
     # Cleanup
-    steps.append({ "action": "smu/output", "params": {"channel": 1, "enabled": False} })
-    steps.append({ "action": "smu/output", "params": {"channel": 2, "enabled": False} })
+    steps.append({ "action": "smu/output", "params": {"channel": sweep_ch, "enabled": False} })
+    steps.append({ "action": "smu/output", "params": {"channel": light_ch, "enabled": False} })
     steps.append({ "action": "relays/all-off" })
 
     return {
@@ -300,6 +314,10 @@ TEMPLATES = {
 st.sidebar.header("Select Template")
 selected_template = st.sidebar.selectbox("Experiment Type", list(TEMPLATES.keys()))
 
+# Display Description
+if selected_template in TEMPLATE_DESCRIPTIONS:
+    st.info(TEMPLATE_DESCRIPTIONS[selected_template])
+
 st.subheader(f"Configure: {selected_template}")
 
 params = {}
@@ -319,6 +337,7 @@ if selected_template == "Multipixel IV Sweep":
         params["start_v"] = st.number_input("Start (V)", value=0.0)
         params["stop_v"] = st.number_input("Stop (V)", value=8.0)
         params["points"] = st.number_input("Points", value=41)
+        params["keep_output_on"] = st.checkbox("Keep SMU output ON after measurement", value=False)
         
     with col4:
         params["compliance"] = st.number_input("Compliance (A)", value=0.1, format="%.4f")
@@ -346,6 +365,7 @@ elif selected_template in ["Dark -> Light (Batch)", "Light -> Dark (Batch)"]:
         params["sweep_channel"] = st.number_input("Sweep Ch", value=1, min_value=1, max_value=2)
         params["start_v"] = st.number_input("IV Start (V)", value=0.0)
         params["stop_v"] = st.number_input("IV Stop (V)", value=1.0)
+        params["keep_output_on"] = st.checkbox("Keep SMU output ON after measurement", value=False)
     with col_s2:
         params["points"] = st.number_input("IV Points", value=21)
         params["compliance"] = st.number_input("IV Compliance (A)", value=0.1, format="%.4f")
@@ -418,9 +438,14 @@ if "generated_yaml" in st.session_state:
                     filepath = user_dir / f"{filename}.yaml"
                 else:
                     filepath = root / f"{filename}.yaml"
+                
+                # Update the inner protocol name to match the filename
+                protocol_data = yaml.safe_load(st.session_state.generated_yaml)
+                protocol_data["name"] = filename
+                updated_yaml = yaml.dump(protocol_data, sort_keys=False)
                     
                 with open(filepath, "w") as f:
-                    f.write(st.session_state.generated_yaml)
+                    f.write(updated_yaml)
                 st.success(f"Saved to {filepath}")
                 
                 # Reload cache
