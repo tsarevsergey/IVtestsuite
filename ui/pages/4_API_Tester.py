@@ -29,9 +29,10 @@ ENDPOINTS = {
             "method": "POST",
             "path": "/smu/connect",
             "params": {
-                "address": {"type": "str", "default": "USB0::0x0957::0xCD18::MY51143841::INSTR"},
+                "address": {"type": "str", "default": "USB0::2391::35864::MY51141849::0::INSTR"},
                 "mock": {"type": "bool", "default": True},
                 "channel": {"type": "select", "options": [1, 2], "default": 1},
+                "smu_type": {"type": "select", "options": ["auto", "keysight_b2901", "keysight_b2902", "keithley_2400"], "default": "auto"},
             }
         },
         "Disconnect SMU": {"method": "POST", "path": "/smu/disconnect", "params": {}},
@@ -42,24 +43,40 @@ ENDPOINTS = {
                 "compliance": {"type": "float", "default": 0.1, "min": 0.0},
                 "compliance_type": {"type": "select", "options": ["CURR", "VOLT"], "default": "CURR"},
                 "nplc": {"type": "float", "default": 1.0, "min": 0.01, "max": 100.0},
+                "channel": {"type": "select", "options": [1, 2], "default": 1},
             }
         },
         "Set Source Mode": {
             "method": "POST",
             "path": "/smu/source-mode",
-            "params": {"mode": {"type": "select", "options": ["VOLT", "CURR"], "default": "VOLT"}}
+            "params": {
+                "mode": {"type": "select", "options": ["VOLT", "CURR"], "default": "VOLT"},
+                "channel": {"type": "select", "options": [1, 2], "default": 1}
+            }
         },
         "Set Value": {
             "method": "POST",
             "path": "/smu/set",
-            "params": {"value": {"type": "float", "default": 0.0}}
+            "params": {
+                "value": {"type": "float", "default": 0.0},
+                "channel": {"type": "select", "options": [1, 2], "default": 1}
+            }
         },
         "Control Output": {
             "method": "POST",
             "path": "/smu/output",
-            "params": {"enabled": {"type": "bool", "default": False}}
+            "params": {
+                "enabled": {"type": "bool", "default": False},
+                "channel": {"type": "select", "options": [1, 2], "default": 1}
+            }
         },
-        "Single Measurement": {"method": "GET", "path": "/smu/measure", "params": {}},
+        "Single Measurement": {
+            "method": "GET", 
+            "path": "/smu/measure", 
+            "params": {
+                "channel": {"type": "select", "options": [1, 2], "default": 1}
+            }
+        },
         "Run IV Sweep": {
             "method": "POST",
             "path": "/smu/sweep",
@@ -72,6 +89,7 @@ ENDPOINTS = {
                 "scale": {"type": "select", "options": ["linear", "log"], "default": "linear"},
                 "direction": {"type": "select", "options": ["forward", "backward"], "default": "forward"},
                 "sweep_type": {"type": "select", "options": ["single", "double"], "default": "single"},
+                "channel": {"type": "select", "options": [1, 2], "default": 1},
             }
         },
         "List Sweep": {
@@ -83,6 +101,7 @@ ENDPOINTS = {
                 "compliance": {"type": "float", "default": 0.1, "min": 0.0},
                 "nplc": {"type": "float", "default": 1.0, "min": 0.01, "max": 100.0},
                 "delay": {"type": "float", "default": 0.1, "min": 0.0},
+                "channel": {"type": "select", "options": [1, 2], "default": 1},
             }
         },
     },
