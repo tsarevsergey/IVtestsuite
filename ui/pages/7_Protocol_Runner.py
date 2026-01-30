@@ -225,70 +225,32 @@ with st.expander("Run Parameters (Overrides)", expanded=True):
             new_folder = st.text_input("Data Folder (Global)", current_folder)
             for step in save_steps:
                 step["params"]["folder"] = new_folder
-    
-    st.divider()
-    with st.expander("Advanced Parameter Overrides (Apply to All Steps)"):
-        col1, col2 = st.columns(2)
-        
-        # 2. Pixels (Loops)
-        loop_steps = find_all_loops(new_steps, "pixel")
-        if loop_steps:
-            # Use first loop as default for UI
-            current_seq = loop_steps[0]["params"].get("sequence", [])
-            # Format as string
-            if isinstance(current_seq, list):
-                seq_str = ",".join(map(str, current_seq))
-            else:
-                seq_str = "1-6"
-                
-            with col1:
-                new_seq_str = st.text_input("Pixels (Global Override)", seq_str, help="Updates ALL loops with the 'pixel' variable.")
-                # Parse logic
-                try:
-                    pixels = []
-                    for part in new_seq_str.split(','):
-                        part = part.strip()
-                        if part:
-                            if '-' in part:
-                                s, e = map(int, part.split('-'))
-                                pixels.extend(range(s, e+1))
-                            else:
-                                pixels.append(int(part))
-                    final_pixels = sorted(list(set(pixels)))
-                    for step in loop_steps:
-                        step["params"]["sequence"] = final_pixels
-                except:
-                    st.error("Invalid pixel format")
-                    
-        # 3. Sweep Params
-        sweep_steps = find_all_steps(new_steps, "smu/sweep")
-        if sweep_steps:
-            # Use first sweep as default for UI
-            p_ref = sweep_steps[0]["params"]
-            st.markdown("#### Sweep Settings (Global Override)")
-            ca, cb, cc, cd = st.columns(4)
-            
-            with ca:
-                new_start = st.number_input("Start (V)", value=float(p_ref.get("start", 0.0)))
-            with cb:
-                new_stop = st.number_input("Stop (V)", value=float(p_ref.get("stop", 1.0)))
-            with cc:
-                new_pts = st.number_input("Points", value=int(p_ref.get("points", 11)))
-            with cd:
-                new_comp = st.number_input("Compl. (A)", value=float(p_ref.get("compliance", 0.1)), format="%.1e")
-                
-            # Apply to all sweeps
-            for step in sweep_steps:
-                p = step["params"]
-                p["start"] = new_start
-                p["stop"] = new_stop
-                p["points"] = new_pts
-                p["compliance"] = new_comp
 
-            # Also sync any smu/configure steps to the same compliance for consistency
-            config_steps = find_all_steps(new_steps, "smu/configure")
-            for step in config_steps:
-                step["params"]["compliance"] = new_comp
+    st.divider()
+    # 2. Pixels (Loops)
+    loop_steps = find_all_loops(new_steps, "pixel")
+    if loop_steps:
+        # Use first loop as default for UI reference
+        current_seq = loop_steps[0]["params"].get("sequence", [])
+        seq_str_init = ",".join(map(str, current_seq)) if isinstance(current_seq, list) else "1-6"
+        
+        new_seq_str = st.text_input("Pixels (Global Override)", seq_str_init, help="Updates ALL loops with the 'pixel' variable.")
+        # Parse logic
+        try:
+            pixels = []
+            for part in new_seq_str.split(','):
+                part = part.strip()
+                if part:
+                    if '-' in part:
+                        s_p, e_p = map(int, part.split('-'))
+                        pixels.extend(range(s_p, e_p+1))
+                    else:
+                        pixels.append(int(part))
+            final_pixels = sorted(list(set(pixels)))
+            for step in loop_steps:
+                step["params"]["sequence"] = final_pixels
+        except:
+            st.error("Invalid pixel format")
             
 # --- Execution & Plotting ---
 st.divider()
@@ -354,6 +316,15 @@ with c_plot1:
     plot_mode = st.radio("Mode", ["Accumulate", "Latest Only"])
     scale_type = st.radio("Y-Axis", ["Linear", "Log"])
     
+    # Channel Selector
+    available_channels = sorted(list(set(t.get("channel", 1) for t in st.session_state.traces))) if st.session_state.traces else [1]
+    if len(available_channels) > 1:
+        selected_channel = st.selectbox("Channel", available_channels)
+    else:
+        selected_channel = available_channels[0]
+        st.caption(f"Showing Channel {selected_channel}")
+    
+status_ph = st.empty()
 plot_ph = st.empty()
 
 # --- Scientific Plotly Theme (Theme Adaptive) ---
@@ -399,22 +370,41 @@ if st.session_state.traces:
     traces_to_plot = st.session_state.traces if plot_mode == "Accumulate" else [st.session_state.traces[-1]]
     
     for i, t in enumerate(traces_to_plot):
+        if t.get("channel", 1) != selected_channel:
+            continue
+            
         df = pd.DataFrame(t["data"])
-        label = f"Pixel {t['pixel']}" if t['pixel'] is not None else f"Trace {i+1}"
+        v_name = t.get("variable", "iv_data").replace("_iv_data", "").upper()
+        label = f"Pixel {t['pixel']} ({v_name})" if t['pixel'] is not None else f"Trace {i+1} ({v_name})"
         
         cols = [c.lower() for c in df.columns]
         df.columns = cols 
         df["trace"] = label
         
-        if "voltage" in df.columns and "current" in df.columns:
-                df_all = pd.concat([df_all, df], ignore_index=True)
+        # Check for various voltage/current columns
+        v_col = None
+        for c in ["set_voltage", "voltage", "voltage (v)", "set_value"]:
+            if c in df.columns:
+                v_col = c
+                break
+        
+        i_col = None
+        for c in ["current", "current (a)", "amp"]:
+            if c in df.columns:
+                i_col = c
+                break
+
+        if v_col and i_col:
+                # Rename to standard for concat
+                df_to_add = df.rename(columns={v_col: "plot_v", i_col: "plot_i"})
+                df_all = pd.concat([df_all, df_to_add], ignore_index=True)
     
     if not df_all.empty:
-        x_col = "set_voltage" if "set_voltage" in df_all.columns else "voltage"
-        y_col = "current"
+        x_col = "plot_v"
+        y_col = "plot_i"
         
         if scale_type == "Log":
-            df_all["abs_current"] = df_all["current"].abs().replace(0, 1e-12)
+            df_all["abs_current"] = df_all["plot_i"].abs().replace(0, 1e-12)
             y_col = "abs_current"
             
         fig = get_scientific_fig(df_all, x_col, y_col, "trace")
@@ -473,16 +463,31 @@ if st.session_state.running:
                 
                 # Parse Traces from new events
                 for event in new_events:
-                    if event.get("variable") == "iv_data":
+                    var_name = event.get("variable", "")
+                    if var_name.endswith("iv_data"):
                         val = event.get("value")
                         context = event.get("context", {})
                         pixel_id = context.get("pixel")
                         
                         if val and isinstance(val, dict) and "results" in val:
-                            st.session_state.traces.append({
-                                "pixel": pixel_id,
-                                "data": val["results"]
-                            })
+                            results = val["results"]
+                            if isinstance(results, dict):
+                                # Simultaneous sweep results is {ch: [points]}
+                                for ch, data in results.items():
+                                    st.session_state.traces.append({
+                                        "pixel": pixel_id,
+                                        "channel": int(ch),
+                                        "data": data,
+                                        "variable": var_name
+                                    })
+                            else:
+                                # Normal sweep results is [points]
+                                st.session_state.traces.append({
+                                    "pixel": pixel_id,
+                                    "channel": val.get("channel", 1),
+                                    "data": results,
+                                    "variable": var_name
+                                })
             
             # Debug (optional context)
             with st.expander("History Status (Debug)", expanded=False):

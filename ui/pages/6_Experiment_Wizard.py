@@ -368,16 +368,13 @@ elif selected_template in ["Dark -> Light (Batch)", "Light -> Dark (Batch)"]:
     st.markdown("#### IV Sweep Settings")
     col_s1, col_s2, col_s3 = st.columns(3)
     with col_s1:
-        params["sweep_channel"] = st.number_input("Sweep Ch", value=1, min_value=1, max_value=2)
         params["start_v"] = st.number_input("IV Start (V)", value=0.0)
         params["stop_v"] = st.number_input("IV Stop (V)", value=1.0)
         params["keep_output_on"] = st.checkbox("Keep SMU output ON after measurement", value=False)
     with col_s2:
         params["points"] = st.number_input("IV Points", value=21)
-        params["compliance"] = st.number_input("IV Compliance (A)", value=0.1, format="%.4f")
-        params["nplc"] = st.number_input("NPLC", value=1.0)
+        params["delay"] = st.number_input("IV Delay (s)", value=0.10)
     with col_s3:
-        params["delay"] = st.number_input("IV Delay (s)", value=0.05)
         params["sweep_type"] = st.selectbox("Type", ["single", "double"], index=1)
         params["scale"] = st.selectbox("Scale", ["linear", "log"], index=0)
         params["direction"] = st.selectbox("Direction", ["forward", "backward"], index=0)
@@ -397,27 +394,28 @@ elif selected_template in ["Dark -> Light (Batch)", "Light -> Dark (Batch)"]:
              params["light_hold_v"] = st.number_input("Light Hold Voltage (V)", value=0.0)
              
     st.divider()
-    st.markdown("#### SMU Configuration")
+    st.markdown("#### Hardware Configuration")
     col_c1, col_c2 = st.columns(2)
     with col_c1:
-        st.write("**SMU 1 (Sweep)**")
-        params["sm1_mode"] = st.selectbox("Source Mode (SMU 1)", ["VOLT", "CURR"], index=0)
-        params["sm1_compliance"] = st.number_input("Compliance (SMU 1)", value=0.1, format="%.4f")
-        params["sm1_compliance_type"] = st.selectbox("Compliance Type (SMU 1)", ["CURR", "VOLT"], index=0 if params["sm1_mode"]=="VOLT" else 1)
-        params["sweep_channel"] = st.number_input("Sweep Channel #", value=1, min_value=1, max_value=2)
+        st.write("**Sweep Channel Config (Primary)**")
+        params["sweep_channel"] = st.number_input("Sweep Channel #", value=2, min_value=1, max_value=2)
+        params["sm1_mode"] = st.selectbox("Source Mode (Sweep)", ["VOLT", "CURR"], index=1)
+        params["sm1_compliance"] = st.number_input("Compliance (Sweep)", value=0.1, format="%.4f")
+        params["sm1_compliance_type"] = st.selectbox("Compliance Type (Sweep)", ["CURR", "VOLT"], index=0 if params["sm1_mode"]=="VOLT" else 1)
+        params["nplc"] = st.number_input("NPLC (Speed)", value=1.0)
         
     with col_c2:
-        st.write("**SMU 2 (Bias/Light)**")
-        params["sm2_mode"] = st.selectbox("Source Mode (SMU 2)", ["VOLT", "CURR"], index=1)
-        params["sm2_compliance"] = st.number_input("Compliance (SMU 2)", value=5.0)
-        params["sm2_compliance_type"] = st.selectbox("Compliance Type (SMU 2)", ["VOLT", "CURR"], index=0 if params["sm2_mode"]=="CURR" else 1)
-        params["light_channel"] = st.number_input("Light Channel #", value=2, min_value=1, max_value=2)
+        st.write("**Bias/Light Channel Config (Secondary)**")
+        params["light_channel"] = st.number_input("Bias Channel #", value=1, min_value=1, max_value=2)
+        params["sm2_mode"] = st.selectbox("Source Mode (Bias)", ["VOLT", "CURR"], index=0)
+        params["sm2_compliance"] = st.number_input("Compliance (Bias)", value=0.05)
+        params["sm2_compliance_type"] = st.selectbox("Compliance Type (Bias)", ["VOLT", "CURR"], index=1 if params["sm2_mode"]=="VOLT" else 0)
 
     st.divider()
     st.markdown("#### Light Source Config (Bias Channel)")
     col_l1, col_l2 = st.columns(2)
     with col_l1:
-        params["light_current"] = st.number_input("Light Current/Voltage Value", value=0.001, format="%.6f", help="Target value for the bias SMU")
+        params["light_current"] = st.number_input("Light Target Value (A/V)", value=0.001, format="%.6f", help="Target value for the bias SMU")
     with col_l2:
         st.empty()
 

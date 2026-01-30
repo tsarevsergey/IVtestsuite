@@ -519,7 +519,10 @@ class SMUClient:
                         logger.warning("IV sweep aborted by user")
                         break
                     
-                    ctrl.set_voltage(v)
+                    if source_mode == "CURR":
+                        ctrl.set_current(v)
+                    else:
+                        ctrl.set_voltage(v)
                     run_manager.sleep(delay)
                     meas = ctrl.measure()
                     meas["set_voltage"] = v
@@ -724,7 +727,10 @@ class SMUClient:
                     
                     # Set All
                     for ctrl in controllers:
-                        ctrl.set_voltage(v)
+                        if source_mode == "CURR":
+                            ctrl.set_current(v)
+                        else:
+                            ctrl.set_voltage(v)
                     
                     run_manager.sleep(delay)
                     
