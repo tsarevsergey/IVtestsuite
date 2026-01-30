@@ -43,6 +43,7 @@ ACTIONS = {
         "smu/configure": {
             "description": "Set Compliance & Speed",
             "params": {
+                "channel": {"type": "int", "default": 1, "min": 1, "max": 2, "label": "Channel"},
                 "compliance": {"type": "float", "default": 0.1, "label": "Compliance Limit"},
                 "compliance_type": {"type": "select", "options": ["CURR", "VOLT"], "default": "CURR", "label": "Compliance Type"},
                 "nplc": {"type": "float", "default": 1.0, "label": "NPLC (Speed)"}
@@ -51,12 +52,14 @@ ACTIONS = {
         "smu/source-mode": {
             "description": "Set Source Mode",
             "params": {
+                "channel": {"type": "int", "default": 1, "min": 1, "max": 2, "label": "Channel"},
                 "mode": {"type": "select", "options": ["VOLT", "CURR"], "default": "VOLT", "label": "Source Mode"}
             }
         },
         "smu/output": {
             "description": "Enable/Disable Output",
             "params": {
+                "channel": {"type": "int", "default": 1, "min": 1, "max": 2, "label": "Channel"},
                 "enabled": {"type": "bool", "default": True, "label": "Output Enabled"}
             }
         }
@@ -74,14 +77,76 @@ ACTIONS = {
             "can_capture": True
         },
         "smu/sweep": {
-            "description": "Run IV Sweep",
+            "description": "Single Channel IV Sweep",
             "params": {
-                "start": {"type": "float", "default": 0.0, "label": "Start"},
-                "stop": {"type": "float", "default": 1.0, "label": "Stop"},
+                "channel": {"type": "int", "default": 1, "min": 1, "max": 2, "label": "Channel"},
+                "start": {"type": "float", "default": 0.0, "label": "Start (V/A)"},
+                "stop": {"type": "float", "default": 1.0, "label": "Stop (V/A)"},
                 "points": {"type": "int", "default": 11, "label": "Points"},
-                "sweep_type": {"type": "select", "options": ["single", "double"], "default": "single", "label": "Type"},
                 "delay": {"type": "float", "default": 0.1, "label": "Delay (s)"},
-                "compliance": {"type": "float", "default": 0.1, "label": "Sweep Compliance"}
+                "compliance": {"type": "float", "default": 0.1, "label": "Compliance"},
+                
+                # Advanced Params
+                "scale": {"type": "select", "options": ["linear", "log"], "default": "linear", "label": "Scale"},
+                "direction": {"type": "select", "options": ["forward", "backward"], "default": "forward", "label": "Direction"},
+                "sweep_type": {"type": "select", "options": ["single", "double"], "default": "single", "label": "Type (Single/Double)"},
+                "keep_output_on": {"type": "bool", "default": False, "label": "Keep Output On"}
+            },
+            "can_capture": True
+        },
+        "smu/bias-sweep": {
+            "description": "Bias Ch A, Sweep Ch B",
+            "params": {
+                "bias_channel": {"type": "int", "default": 2, "label": "Bias Ch ID"},
+                "bias_source_mode": {"type": "select", "options": ["VOLT", "CURR"], "default": "VOLT", "label": "Bias Mode"},
+                "bias_value": {"type": "float", "default": 0.0, "label": "Bias Value"},
+                "bias_compliance": {"type": "float", "default": 0.1, "label": "Bias Compliance"},
+                
+                "sweep_channel": {"type": "int", "default": 1, "label": "Sweep Ch ID"},
+                "sweep_source_mode": {"type": "select", "options": ["VOLT", "CURR"], "default": "VOLT", "label": "Sweep Mode"},
+                "start": {"type": "float", "default": 0.0, "label": "Sweep Start"},
+                "stop": {"type": "float", "default": 1.0, "label": "Sweep Stop"},
+                "points": {"type": "int", "default": 11, "label": "Points"},
+                "sweep_compliance": {"type": "float", "default": 0.1, "label": "Sweep Compliance"},
+                
+                "delay": {"type": "float", "default": 0.1, "label": "Delay (s)"},
+                "keep_output_on": {"type": "bool", "default": False, "label": "Keep On"}
+            },
+            "can_capture": True
+        },
+        "smu/list-sweep": {
+            "description": "Single Channel List Sweep",
+            "params": {
+                "channel": {"type": "int", "default": 1, "min": 1, "max": 2, "label": "Channel"},
+                "points": {"type": "code", "default": "[0.0, 0.5, 1.0, 0.5, 0.0]", "label": "Points List"},
+                "source_mode": {"type": "select", "options": ["VOLT", "CURR"], "default": "VOLT", "label": "Source Mode"},
+                "delay": {"type": "float", "default": 0.05, "label": "Delay (s)"},
+                "compliance": {"type": "float", "default": 0.1, "label": "Compliance"},
+                "nplc": {"type": "float", "default": 1.0, "label": "NPLC"}
+            },
+            "can_capture": True
+        },
+        "smu/simultaneous-list-sweep": {
+            "description": "Custom List Sweep",
+            "params": {
+                 "ch1_points": {"type": "code", "default": "[0.0, 0.5, 1.0]", "label": "Ch1 Points (List or None)"},
+                 "ch2_points": {"type": "code", "default": "[0.0, 0.2, 0.4]", "label": "Ch2 Points (List or None)"},
+                 "delay": {"type": "float", "default": 0.05, "label": "Delay (s)"},
+                 "compliance": {"type": "float", "default": 0.1, "label": "Compliance"}
+            },
+            "can_capture": True
+        },
+        "smu/simultaneous-sweep-custom": {
+            "description": "Simultaneous 2-Ch Sweep",
+            "params": {
+                "ch1_start": {"type": "float", "default": 0.0, "label": "Ch1 Start (V)"},
+                "ch1_stop": {"type": "float", "default": 1.0, "label": "Ch1 Stop (V)"},
+                "ch2_start": {"type": "float", "default": 0.0, "label": "Ch2 Start (V)"},
+                "ch2_stop": {"type": "float", "default": 1.0, "label": "Ch2 Stop (V)"},
+                "points": {"type": "int", "default": 11, "label": "Points (Shared)"},
+                "scale": {"type": "select", "options": ["linear", "log"], "default": "linear", "label": "Scale"},
+                "delay": {"type": "float", "default": 0.05, "label": "Delay (s)"},
+                "compliance": {"type": "float", "default": 0.1, "label": "Compliance"}
             },
             "can_capture": True
         }
@@ -218,6 +283,15 @@ with col_builder:
                     params[param_key] = st.text_input(label, value=params[param_key], help="Use $variable_name", key=f"p_{i}_{param_key}")
                 elif p_type == "select":
                     params[param_key] = st.selectbox(label, options=param_conf["options"], index=param_conf["options"].index(params[param_key]), key=f"p_{i}_{param_key}")
+                elif p_type == "code":
+                    val_str = st.text_area(label, value=str(params[param_key]), height=100, key=f"p_{i}_{param_key}", help="Enter valid JSON/YAML structure")
+                    try:
+                        # Try to parse as YAML/JSON so it dumps correctly
+                        parsed = yaml.safe_load(val_str)
+                        params[param_key] = parsed
+                    except:
+                        # Fallback to string if invalid (will likely cause runtime error later, but UI stays responsive)
+                        params[param_key] = val_str
 
             # Capture Variable
             if schema.get("can_capture", False):

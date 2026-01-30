@@ -632,5 +632,269 @@ class SMUClient:
                     run_manager.complete()
 
 
+    def run_simultaneous_sweep(
+        self,
+        channels: List[int],
+        start: float,
+        stop: float,
+        steps: int,
+        compliance: float = 0.01,
+        delay: float = 0.05,
+        scale: str = "linear",
+        direction: str = "forward",
+        sweep_type: str = "single",
+        source_mode: str = "VOLT",
+        keep_output_on: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Execute simultaneous IV sweep on multiple channels.
+        
+        Software-timed interleaved sweep:
+        1. Set Ch A, Set Ch B
+        2. Wait
+        3. Measure Ch A, Measure Ch B
+        """
+        if not self._status.connected:
+            return {"success": False, "message": "Not connected"}
+        
+        controllers = []
+        try:
+            for ch in channels:
+                controllers.append(self._get_controller(ch))
+        except Exception as e:
+            return {"success": False, "message": f"Controller access failed: {e}"}
+
+        # Automatically manage RunState
+        auto_started = False
+        if run_manager.state in [RunState.ABORTED, RunState.ERROR]:
+            run_manager.reset()
+        if run_manager.state == RunState.IDLE:
+            run_manager.arm()
+        if run_manager.state == RunState.ARMED:
+            run_manager.start()
+            auto_started = True
+            
+        with self._op_lock:
+            try:
+                # 1. Point Generation (Reuse logic likely, but dup for safety now)
+                s_val = start if direction == "forward" else stop
+                e_val = stop if direction == "forward" else start
+                
+                if scale.lower() == "log":
+                    s_log = s_val if s_val != 0 else (1e-6 if e_val > 0 else -1e-6)
+                    e_log = e_val if e_val != 0 else (1e-6 if s_val > 0 else -1e-6)
+                    points_arr = np.logspace(np.log10(abs(s_log)), np.log10(abs(e_log)), steps)
+                    if s_log < 0 or (s_log == 0 and e_log < 0):
+                        points_arr = -points_arr
+                else:
+                    points_arr = np.linspace(s_val, e_val, steps)
+                
+                if len(points_arr) > 0:
+                    points_arr[-1] = e_val
+                
+                if sweep_type.lower() == "double":
+                     points_arr = np.concatenate([points_arr, points_arr[::-1][1:]])
+                     points_arr[-1] = s_val
+                
+                points_list = points_arr.tolist()
+                
+                # 2. Configure All Channels
+                for ctrl in controllers:
+                    ctrl.set_source_mode(source_mode)
+                    ctrl.set_compliance(compliance, "CURR") # Assuming VOLT sweep
+                    if not getattr(ctrl, "_output_enabled", False):
+                        ctrl.enable_output()
+                
+                logger.info(f"Starting Simultaneous Sweep on Channels {channels}: {len(points_list)} points")
+                
+                # 3. Sweep Loop
+                results = {ch: [] for ch in channels}
+                
+                for i, v in enumerate(points_list):
+                    if run_manager.is_abort_requested():
+                        break
+                    
+                    # Set All
+                    for ctrl in controllers:
+                        ctrl.set_voltage(v)
+                    
+                    run_manager.sleep(delay)
+                    
+                    # Measure All
+                    for ctrl in controllers:
+                        meas = ctrl.measure()
+                        meas["set_value"] = v
+                        results[ctrl.channel].append(meas)
+                
+                # Cleanup
+                if not keep_output_on or run_manager.is_abort_requested():
+                    for ctrl in controllers:
+                        ctrl.disable_output()
+                
+                logger.info("Simultaneous sweep complete")
+                
+                return {
+                    "success": True,
+                    "results": results, # Dictionary {ch: [points]}
+                    "points": len(points_list),
+                    "aborted": run_manager.is_abort_requested(),
+                    "channels": channels
+                }
+                
+            except Exception as e:
+                logger.error(f"Simultaneous sweep error: {e}")
+                for ctrl in controllers:
+                    try:
+                        ctrl.disable_output()
+                    except:
+                        pass
+                return {"success": False, "message": str(e)}
+            finally:
+                if auto_started:
+                    run_manager.complete()
+
+
+    def run_simultaneous_list_sweep(
+        self,
+        points_map: Dict[int, List[float]],
+        compliance: float = 0.1,
+        nplc: float = 1.0,
+        delay: float = 0.05,
+        source_mode: str = "VOLT",
+        keep_output_on: bool = False,
+        config_map: Optional[Dict[int, Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
+        """
+        Execute simultaneous sweep using explicit lists of points for each channel.
+        
+        Args:
+            points_map: Dict mapping channel ID to list of values. Lists must be same length.
+            compliance: Default compliance (A) if not in config_map
+            nplc: Default nplc if not in config_map
+            delay: Delay between points (s)
+            source_mode: Default source_mode if not in config_map
+            keep_output_on: If True, output stays on after sweep
+            config_map: Optional dict mapping channel ID to config dict:
+                        {
+                            1: {"source_mode": "VOLT", "compliance": 0.1, "nplc": 1.0},
+                            2: {"source_mode": "CURR", "compliance": 2.0, "nplc": 1.0}
+                        }
+        """
+        if not self._status.connected:
+            return {"success": False, "message": "Not connected"}
+        
+        channels = list(points_map.keys())
+        if not channels:
+            return {"success": False, "message": "No channels specified"}
+            
+        # Verify list lengths match
+        lengths = [len(pts) for pts in points_map.values()]
+        if len(set(lengths)) > 1:
+            return {"success": False, "message": f"Point list lengths mismatch: {lengths}"}
+        
+        num_points = lengths[0]
+        
+        controllers = []
+        try:
+            for ch in channels:
+                controllers.append(self._get_controller(ch))
+        except Exception as e:
+            return {"success": False, "message": f"Controller access failed: {e}"}
+
+        # Automatically manage RunState
+        auto_started = False
+        if run_manager.state in [RunState.ABORTED, RunState.ERROR]:
+            run_manager.reset()
+        if run_manager.state == RunState.IDLE:
+            run_manager.arm()
+        if run_manager.state == RunState.ARMED:
+            run_manager.start()
+            auto_started = True
+            
+        # Prepare Configuration
+        # If config_map is missing for a channel, use defaults
+        final_configs = {}
+        for ch in channels:
+            defaults = {
+                "source_mode": source_mode,
+                "compliance": compliance,
+                "nplc": nplc
+            }
+            if config_map and ch in config_map:
+                defaults.update(config_map[ch])
+            final_configs[ch] = defaults
+
+        with self._op_lock:
+            try:
+                # Configure All Channels
+                for ctrl in controllers:
+                    cfg = final_configs[ctrl.channel]
+                    mode = cfg["source_mode"]
+                    comp = cfg["compliance"]
+                    # For B2900, if source is VOLT, compliance is CURR, and vice versa.
+                    comp_type = "CURR" if mode == "VOLT" else "VOLT"
+                    
+                    ctrl.set_source_mode(mode)
+                    ctrl.set_compliance(comp, comp_type)
+                    ctrl.set_nplc(cfg["nplc"])
+                    
+                    if not getattr(ctrl, "_output_enabled", False):
+                        ctrl.enable_output()
+                
+                logger.info(f"Starting Simultaneous List Sweep on Channels {channels}: {num_points} points")
+                
+                # Sweep Loop
+                results = {ch: [] for ch in channels}
+                
+                for i in range(num_points):
+                    if run_manager.is_abort_requested():
+                        break
+                    
+                    # Set All
+                    for ctrl in controllers:
+                        val = points_map[ctrl.channel][i]
+                        mode = final_configs[ctrl.channel]["source_mode"]
+                        
+                        if mode == "VOLT":
+                            ctrl.set_voltage(val)
+                        else:
+                            ctrl.set_current(val)
+                    
+                    run_manager.sleep(delay)
+                    
+                    # Measure All
+                    for ctrl in controllers:
+                        meas = ctrl.measure()
+                        meas["set_value"] = points_map[ctrl.channel][i]
+                        results[ctrl.channel].append(meas)
+                
+                # Cleanup
+                if not keep_output_on or run_manager.is_abort_requested():
+                    for ctrl in controllers:
+                        ctrl.disable_output()
+                
+                logger.info("Simultaneous list sweep complete")
+                
+                return {
+                    "success": True,
+                    "results": results, 
+                    "points": num_points,
+                    "aborted": run_manager.is_abort_requested(),
+                    "channels": channels
+                }
+                
+            except Exception as e:
+                logger.error(f"Simultaneous list sweep error: {e}")
+                for ctrl in controllers:
+                    try:
+                        ctrl.disable_output()
+                    except:
+                        pass
+                return {"success": False, "message": str(e)}
+            finally:
+                if auto_started:
+                    run_manager.complete()
+
+
 # Global singleton instance
 smu_client = SMUClient()

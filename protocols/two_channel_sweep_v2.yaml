@@ -1,0 +1,89 @@
+name: Two Channel Sweep Test V2
+description: Configures both channels first, then sweeps them sequentially while keeping output ON.
+version: 2.0
+steps:
+# 1. Connect Phase
+- action: smu/connect
+  params:
+    mock: false
+    channel: 1
+- action: smu/connect
+  params:
+    mock: false
+    channel: 2
+
+# 2. Configure Phase (All Channels)
+- action: smu/configure
+  params:
+    channel: 1
+    compliance: 0.1
+    nplc: 0.1
+- action: smu/configure
+  params:
+    channel: 2
+    compliance: 0.05
+    nplc: 0.1
+- action: smu/source-mode
+  params:
+    channel: 1
+    mode: VOLT
+- action: smu/source-mode
+  params:
+    channel: 2
+    mode: VOLT
+
+# 3. Enable Phase
+- action: smu/output
+  params:
+    channel: 1
+    enabled: true
+- action: smu/output
+  params:
+    channel: 2
+    enabled: true
+- action: wait
+  params:
+    seconds: 0.5
+
+# 4. Sweep Phase (Sequential, Output Stays ON)
+- action: smu/sweep
+  params:
+    channel: 1
+    start: 0.0
+    stop: 1.0
+    points: 11
+    delay: 0.01
+    keep_output_on: true
+  capture_as: ch1_data
+- action: data/save
+  params:
+    data: $ch1_data
+    filename: ch1_sweep_v2
+
+- action: wait
+  params:
+    seconds: 0.5
+
+- action: smu/sweep
+  params:
+    channel: 2
+    start: 0.0
+    stop: 1.0
+    points: 11
+    delay: 0.01
+    keep_output_on: true
+  capture_as: ch2_data
+- action: data/save
+  params:
+    data: $ch2_data
+    filename: ch2_sweep_v2
+
+# 5. Cleanup Phase
+- action: smu/output
+  params:
+    channel: 1
+    enabled: false
+- action: smu/output
+  params:
+    channel: 2
+    enabled: false

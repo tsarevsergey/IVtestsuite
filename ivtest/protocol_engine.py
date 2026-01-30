@@ -13,6 +13,7 @@ import threading
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 import copy
+import numpy as np
 
 from .logging_config import get_logger
 from .run_manager import run_manager, RunState
@@ -69,6 +70,10 @@ class ProtocolEngine:
             "smu/output": self._action_smu_output,
             "smu/measure": self._action_smu_measure,
             "smu/sweep": self._action_smu_sweep,
+            "smu/simultaneous-sweep": self._action_smu_simultaneous_sweep,
+            "smu/simultaneous-sweep-custom": self._action_smu_simultaneous_sweep_custom,
+            "smu/simultaneous-list-sweep": self._action_smu_simultaneous_list_sweep,
+            "smu/bias-sweep": self._action_smu_bias_sweep,
             "smu/list-sweep": self._action_smu_list_sweep,
             "relays/connect": self._action_relays_connect,
             "relays/disconnect": self._action_relays_disconnect,
@@ -321,20 +326,32 @@ class ProtocolEngine:
         return smu_client.configure(
             compliance=params.get("compliance", 0.1),
             compliance_type=params.get("compliance_type", "CURR"),
-            nplc=params.get("nplc", 1.0)
+            nplc=params.get("nplc", 1.0),
+            channel=params.get("channel", None)
         )
     
     def _action_smu_source_mode(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        return smu_client.set_source_mode(params.get("mode", "VOLT"))
+        return smu_client.set_source_mode(
+            mode=params.get("mode", "VOLT"),
+            channel=params.get("channel", None)
+        )
     
     def _action_smu_set(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        return smu_client.set_value(params.get("value", 0.0))
+        return smu_client.set_value(
+            value=params.get("value", 0.0),
+            channel=params.get("channel", None)
+        )
     
     def _action_smu_output(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        return smu_client.output_control(params.get("enabled", True))
+        return smu_client.output_control(
+            enabled=params.get("enabled", True),
+            channel=params.get("channel", None)
+        )
     
     def _action_smu_measure(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        return smu_client.measure()
+        return smu_client.measure(
+            channel=params.get("channel", None)
+        )
     
     def _action_smu_sweep(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return smu_client.run_iv_sweep(
@@ -346,7 +363,199 @@ class ProtocolEngine:
             scale=params.get("scale", "linear"),
             direction=params.get("direction", "forward"),
             sweep_type=params.get("sweep_type", "single"),
+            keep_output_on=params.get("keep_output_on", False),
+            channel=params.get("channel", None)
+        )
+    
+    def _action_smu_simultaneous_sweep(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute simultaneous sweep on multiple channels."""
+        return smu_client.run_simultaneous_sweep(
+            channels=params.get("channels", [1, 2]),
+            start=params.get("start", 0.0),
+            stop=params.get("stop", 1.0),
+            steps=params.get("points", 11),
+            compliance=params.get("compliance", 0.01),
+            delay=params.get("delay", 0.05),
+            scale=params.get("scale", "linear"),
+            direction=params.get("direction", "forward"),
+            sweep_type=params.get("sweep_type", "single"),
+            source_mode=params.get("source_mode", "VOLT"),
             keep_output_on=params.get("keep_output_on", False)
+        )
+        
+    def _action_smu_simultaneous_sweep_custom(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute simultaneous sweep with INDEPENDENT sweep parameters for each channel.
+        
+        Args:
+           sweeps: List of sweep dicts, e.g. [{"channel": 1, "start": 0...}, {"channel": 2...}]
+           OR Flat params for Ch1/Ch2 convenience:
+           ch1_start, ch1_stop, ch1_points, ch2_start...
+           
+           compliance: global compliance
+           delay: global delay
+        """
+        sweeps = params.get("sweeps", [])
+        
+        # Support flat parameters for UI convenience
+        if not sweeps:
+            # Check for Ch1
+            if "ch1_start" in params or "ch1_stop" in params:
+                sweeps.append({
+                    "channel": 1,
+                    "start": params.get("ch1_start", 0.0),
+                    "stop": params.get("ch1_stop", 1.0),
+                    "points": params.get("points", 11), # Shared points usually
+                    "scale": params.get("scale", "linear")
+                })
+            # Check for Ch2
+            if "ch2_start" in params or "ch2_stop" in params:
+                 sweeps.append({
+                    "channel": 2,
+                    "start": params.get("ch2_start", 0.0),
+                    "stop": params.get("ch2_stop", 1.0),
+                    "points": params.get("points", 11),
+                    "scale": params.get("scale", "linear")
+                })
+                
+        if not sweeps:
+            return {"success": False, "message": "No sweeps defined (use 'sweeps' list or ch1/ch2 params)"}
+            
+        points_map = {}
+        target_len = None
+        
+        for s in sweeps:
+            ch = s.get("channel")
+            if ch is None:
+                continue
+                
+            start = s.get("start", 0.0)
+            stop = s.get("stop", 1.0)
+            points = s.get("points", 11)
+            scale = s.get("scale", "linear")
+            direction = s.get("direction", "forward")
+            sweep_type = s.get("sweep_type", "single")
+            
+            # Generate points (logic duplicated from client for now to build list)
+            s_val = start if direction == "forward" else stop
+            e_val = stop if direction == "forward" else start
+            
+            if scale.lower() == "log":
+                s_log = s_val if s_val != 0 else (1e-6 if e_val > 0 else -1e-6)
+                e_log = e_val if e_val != 0 else (1e-6 if s_val > 0 else -1e-6)
+                pts_arr = np.logspace(np.log10(abs(s_log)), np.log10(abs(e_log)), points)
+                if s_log < 0 or (s_log == 0 and e_log < 0):
+                    pts_arr = -pts_arr
+            else:
+                pts_arr = np.linspace(s_val, e_val, points)
+            
+            if len(pts_arr) > 0:
+                pts_arr[-1] = e_val
+            
+            if sweep_type.lower() == "double":
+                 pts_arr = np.concatenate([pts_arr, pts_arr[::-1][1:]])
+                 pts_arr[-1] = s_val
+                 
+            # Validation
+            if target_len is None:
+                target_len = len(pts_arr)
+            elif len(pts_arr) != target_len:
+                return {"success": False, "message": f"Sweep point count mismatch for Ch {ch}. Expected {target_len}, got {len(pts_arr)}"}
+                
+            points_map[ch] = pts_arr.tolist()
+            
+        return smu_client.run_simultaneous_list_sweep(
+            points_map=points_map,
+            compliance=params.get("compliance", 0.1),
+            nplc=params.get("nplc", 1.0),
+            delay=params.get("delay", 0.05),
+            source_mode=params.get("source_mode", "VOLT"),
+            keep_output_on=params.get("keep_output_on", False)
+        )
+            
+    def _action_smu_simultaneous_list_sweep(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute simultaneous sweep from custom lists."""
+        points_map = params.get("points_map")
+        
+        # Support separate UI fields
+        if not points_map:
+            points_map = {}
+            if "ch1_points" in params:
+                 points_map[1] = params["ch1_points"]
+            if "ch2_points" in params:
+                 points_map[2] = params["ch2_points"]
+                 
+        if not points_map:
+             return {"success": False, "message": "No points map or channel points defined"}
+             
+        return smu_client.run_simultaneous_list_sweep(
+            points_map=points_map,
+            compliance=params.get("compliance", 0.1),
+            nplc=params.get("nplc", 1.0),
+            delay=params.get("delay", 0.05),
+            source_mode=params.get("source_mode", "VOLT"),
+            keep_output_on=params.get("keep_output_on", False)
+        )
+
+    def _action_smu_bias_sweep(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Hold one channel at bias (V or I), sweep another (V or I).
+        Supports mixed source modes and independent compliance.
+        """
+        # Bias Channel Config
+        bias_ch = params.get("bias_channel", 2)
+        bias_mode = params.get("bias_source_mode", "VOLT")
+        bias_val = params.get("bias_value", 0.0) # Generic name
+        # Support legacy "bias_voltage" param
+        if "bias_voltage" in params and "bias_value" not in params:
+             bias_val = params.get("bias_voltage")
+             
+        bias_comp = params.get("bias_compliance", 0.1)
+        
+        # Sweep Channel Config
+        sweep_ch = params.get("sweep_channel", 1)
+        sweep_mode = params.get("sweep_source_mode", "VOLT")
+        start = params.get("start", 0.0)
+        stop = params.get("stop", 1.0)
+        points = params.get("points", 11)
+        sweep_comp = params.get("sweep_compliance", 0.1)
+        
+        # Timing / Output
+        delay = params.get("delay", 0.05)
+        keep_on = params.get("keep_output_on", False)
+        
+        # Generate sweep points
+        pts_arr = np.linspace(start, stop, points)
+        sweep_list = pts_arr.tolist()
+        
+        # Generate bias points (constant)
+        bias_list = [bias_val] * points
+        
+        # Create map
+        points_map = {
+            bias_ch: bias_list,
+            sweep_ch: sweep_list
+        }
+        
+        # Create Config Map
+        config_map = {
+            bias_ch: {
+                "source_mode": bias_mode,
+                "compliance": bias_comp,
+                "nplc": params.get("nplc", 1.0)
+            },
+            sweep_ch: {
+                "source_mode": sweep_mode,
+                "compliance": sweep_comp,
+                "nplc": params.get("nplc", 1.0)
+            }
+        }
+        
+        return smu_client.run_simultaneous_list_sweep(
+            points_map=points_map,
+            delay=delay,
+            keep_output_on=keep_on,
+            config_map=config_map
         )
     
     def _action_smu_list_sweep(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -355,7 +564,8 @@ class ProtocolEngine:
             source_mode=params.get("source_mode", "VOLT"),
             compliance=params.get("compliance", 0.1),
             nplc=params.get("nplc", 1.0),
-            delay=params.get("delay", 0.1)
+            delay=params.get("delay", 0.1),
+            channel=params.get("channel", None)
         )
     
     def _action_relays_connect(self, params: Dict[str, Any]) -> Dict[str, Any]:

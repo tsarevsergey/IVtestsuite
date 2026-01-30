@@ -238,3 +238,86 @@ async def run_list_sweep(request: ListSweepRequest):
         delay=request.delay,
         channel=request.channel
     )
+
+
+class SimultaneousSweepRequest(BaseModel):
+    channels: List[int] = Field(..., description="List of channels to sweep (e.g. [1, 2])")
+    start: float = Field(default=0.0, description="Start voltage (V)")
+    stop: float = Field(default=1.0, description="Stop voltage (V)")
+    points: int = Field(default=11, gt=1, description="Number of points")
+    compliance: float = Field(default=0.01, gt=0, description="Compliance limit (A)")
+    delay: float = Field(default=0.05, ge=0, description="Delay between points (s)")
+    scale: Literal["linear", "log"] = Field(default="linear", description="Point distribution")
+    direction: Literal["forward", "backward"] = Field(default="forward", description="Sweep direction")
+    sweep_type: Literal["single", "double"] = Field(default="single", description="Sweep type")
+    keep_output_on: bool = Field(default=False, description="Keep output on after sweep")
+    source_mode: Literal["VOLT"] = Field(default="VOLT", description="Source mode (VOLT only)")
+
+
+class SimultaneousSweepResponse(BaseModel):
+    success: bool
+    results: Optional[Dict[int, List[Dict[str, float]]]] = None
+    points: Optional[int] = None
+    aborted: Optional[bool] = None
+    message: Optional[str] = None
+    channels: Optional[List[int]] = None
+
+
+@router.post("/simultaneous-sweep", response_model=SimultaneousSweepResponse)
+async def run_simultaneous_sweep(request: SimultaneousSweepRequest):
+    """
+    Run simultaneous IV sweep on multiple channels.
+    """
+    result = smu_client.run_simultaneous_sweep(
+        channels=request.channels,
+        start=request.start,
+        stop=request.stop,
+        steps=request.points,
+        compliance=request.compliance,
+        delay=request.delay,
+        scale=request.scale,
+        direction=request.direction,
+        sweep_type=request.sweep_type,
+        source_mode=request.source_mode,
+        keep_output_on=request.keep_output_on
+    )
+    
+    return SimultaneousSweepResponse(
+        success=result.get("success", False),
+        results=result.get("results"),
+        points=result.get("points"),
+        aborted=result.get("aborted", False),
+        message=result.get("message"),
+        channels=result.get("channels")
+    )
+
+
+class SimultaneousListSweepRequest(BaseModel):
+    points_map: Dict[int, List[float]] = Field(..., description="Map of Channel ID to list of points")
+    compliance: float = Field(default=0.01, gt=0, description="Compliance limit (A)")
+    delay: float = Field(default=0.05, ge=0, description="Delay between points (s)")
+    source_mode: Literal["VOLT"] = Field(default="VOLT", description="Source mode (VOLT only)")
+    keep_output_on: bool = Field(default=False, description="Keep output on after sweep")
+
+
+@router.post("/simultaneous-list-sweep", response_model=SimultaneousSweepResponse)
+async def run_simultaneous_list_sweep(request: SimultaneousListSweepRequest):
+    """
+    Run simultaneous sweep with custom point lists.
+    """
+    result = smu_client.run_simultaneous_list_sweep(
+        points_map=request.points_map,
+        compliance=request.compliance,
+        delay=request.delay,
+        source_mode=request.source_mode,
+        keep_output_on=request.keep_output_on
+    )
+    
+    return SimultaneousSweepResponse(
+        success=result.get("success", False),
+        results=result.get("results"),
+        points=result.get("points"),
+        aborted=result.get("aborted", False),
+        message=result.get("message"),
+        channels=result.get("channels")
+    )

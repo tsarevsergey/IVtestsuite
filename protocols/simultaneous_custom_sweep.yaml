@@ -1,0 +1,44 @@
+name: Simultaneous Custom Range
+description: Sweeps Ch1 (0-1V) and Ch2 (0-5V) simultaneously.
+version: 1.0
+steps:
+- action: smu/connect
+  params:
+    mock: false
+    channel: 1
+- action: smu/connect
+  params:
+    mock: false
+    channel: 2
+- action: smu/configure
+  params:
+    channel: 1
+    compliance: 0.1
+    nplc: 0.1
+- action: smu/configure
+  params:
+    channel: 2
+    compliance: 0.05
+    nplc: 0.1
+
+- action: smu/simultaneous-sweep-custom
+  params:
+    delay: 0.05
+    nplc: 1.0
+    sweeps:
+      - channel: 1
+        start: 0.0
+        stop: 1.0
+        points: 110
+        scale: linear
+      - channel: 2
+        start: 0.0
+        stop: 5.0
+        points: 110
+        scale: linear
+  capture_as: custom_data
+
+- action: data/save
+  params:
+    data: $custom_data
+    filename: custom_sweep_results

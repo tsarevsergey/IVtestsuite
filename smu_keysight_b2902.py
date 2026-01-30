@@ -352,15 +352,30 @@ class KeysightB2902Controller(BaseSMU):
         
         if self.mock:
             import random
-            noise = random.gauss(0, 1e-10)
-            v_meas = getattr(self, '_last_set_v', 0.0)
-            i_meas = getattr(self, '_last_set_i', 0.0) + noise
+            # Simple physics simulation: V = I * R
+            # We assume a fixed load resistance for mock consistency
+            R_load = 1000.0 if self.channel == 1 else 5000.0 # Different loads for different channels
             
-            if v_meas == 0.0 and i_meas == 0.0:
-                v_meas = random.uniform(0, 0.1)
-                i_meas = random.gauss(0, 1e-11)
+            mode = getattr(self, "_source_mode", "VOLT")
             
-            self.logger.info(f"MOCK: Measured V={v_meas:.4f}, I={i_meas:.4e}")
+            if mode == "VOLT":
+                v_set = getattr(self, '_last_set_v', 0.0)
+                i_real = v_set / R_load
+                
+                v_meas = v_set + random.gauss(0, 1e-4) # Small noise
+                i_meas = i_real + random.gauss(0, 1e-9)
+            
+            else: # CURR
+                i_set = getattr(self, '_last_set_i', 0.0)
+                v_real = i_set * R_load
+                
+                # Apply compliance if set (mocking compliance clamping)
+                # This is tricky without storing compliance, but let's just do basic
+                
+                i_meas = i_set + random.gauss(0, 1e-10)
+                v_meas = v_real + random.gauss(0, 1e-4)
+
+            self.logger.info(f"MOCK Ch{self.channel}: Measured V={v_meas:.4f}, I={i_meas:.4e}")
             return {'voltage': v_meas, 'current': i_meas}
         
         try:
