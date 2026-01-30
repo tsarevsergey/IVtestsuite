@@ -421,6 +421,7 @@ class SMUClient:
         steps: int,
         compliance: float = 0.01,
         delay: float = 0.05,
+        nplc: Optional[float] = None,
         scale: str = "linear",
         direction: str = "forward",
         sweep_type: str = "single",
@@ -501,8 +502,11 @@ class SMUClient:
                 results = []
                 
                 # Configure
-                ctrl.set_source_mode("VOLT")
-                ctrl.set_compliance(compliance, "CURR")
+                ctrl.set_source_mode(source_mode)
+                comp_type = "CURR" if source_mode == "VOLT" else "VOLT"
+                ctrl.set_compliance(compliance, comp_type)
+                if nplc is not None:
+                    ctrl.set_nplc(nplc)
                 
                 # Only enable output if not already enabled (to support keep_output_on loops)
                 if not getattr(ctrl, "_output_enabled", False):
@@ -640,6 +644,7 @@ class SMUClient:
         steps: int,
         compliance: float = 0.01,
         delay: float = 0.05,
+        nplc: Optional[float] = None,
         scale: str = "linear",
         direction: str = "forward",
         sweep_type: str = "single",
@@ -701,7 +706,10 @@ class SMUClient:
                 # 2. Configure All Channels
                 for ctrl in controllers:
                     ctrl.set_source_mode(source_mode)
-                    ctrl.set_compliance(compliance, "CURR") # Assuming VOLT sweep
+                    comp_type = "CURR" if source_mode == "VOLT" else "VOLT"
+                    ctrl.set_compliance(compliance, comp_type)
+                    if nplc is not None:
+                        ctrl.set_nplc(nplc)
                     if not getattr(ctrl, "_output_enabled", False):
                         ctrl.enable_output()
                 

@@ -70,7 +70,7 @@ def generate_multipixel_sweep(params: Dict[str, Any]) -> Dict[str, Any]:
             # 2. Configure
             {
                 "action": "smu/configure",
-                "params": {"compliance": compliance, "nplc": nplc}
+                "params": {"compliance": compliance, "compliance_type": "CURR", "nplc": nplc}
             },
             {
                 "action": "smu/source-mode",
@@ -106,6 +106,7 @@ def generate_multipixel_sweep(params: Dict[str, Any]) -> Dict[str, Any]:
                             "scale": scale,
                             "direction": direction,
                             "compliance": compliance,
+                            "nplc": nplc,
                             "keep_output_on": keep_output_on
                         },
                         "capture_as": "iv_data"
@@ -147,8 +148,12 @@ def generate_dark_light_sweep_batch(params: Dict[str, Any], order: str = "dark_f
     sample_name = params.get("sample_name", "Sample")
     pixel_list = parse_pixel_string(params.get("pixel_str", "1-6"))
     
-    # Sweep Config (Ch X)
+    # Sweep Config (SMU 1 - typically Sweep)
     sweep_ch = params.get("sweep_channel", 1)
+    sm1_mode = params.get("sm1_mode", "VOLT")
+    sm1_comp = params.get("sm1_compliance", 0.1)
+    sm1_comp_type = params.get("sm1_compliance_type", "CURR")
+    
     # IV Parameters
     iv_start = params.get("start_v", 0.0)
     iv_stop = params.get("stop_v", 1.0)
@@ -156,16 +161,17 @@ def generate_dark_light_sweep_batch(params: Dict[str, Any], order: str = "dark_f
     iv_delay = params.get("delay", 0.05)
     
     # Advanced IV
-    compliance = params.get("compliance", 0.1)
     nplc = params.get("nplc", 1.0)
     sweep_type = params.get("sweep_type", "double")
     scale = params.get("scale", "linear")
     direction = params.get("direction", "forward")
     
-    # Light Config (Ch Y)
+    # Light Config (SMU 2 - typically Bias)
     light_ch = params.get("light_channel", 2)
+    sm2_mode = params.get("sm2_mode", "CURR")
     light_current = params.get("light_current", 0.001) 
-    light_compliance = params.get("light_compliance", 5.0)
+    sm2_comp = params.get("sm2_compliance", 5.0)
+    sm2_comp_type = params.get("sm2_compliance_type", "VOLT")
     
     # Steady State Config
     do_steady = params.get("enable_steady_state", False)
@@ -196,15 +202,15 @@ def generate_dark_light_sweep_batch(params: Dict[str, Any], order: str = "dark_f
         if do_steady:
              loop_steps.extend([
                 # Configure for Hold
-                { "action": "smu/configure", "params": {"channel": sweep_ch, "compliance": compliance, "nplc": nplc} },
-                { "action": "smu/source-mode", "params": {"channel": sweep_ch, "mode": "VOLT"} },
+                { "action": "smu/configure", "params": {"channel": sweep_ch, "compliance": sm1_comp, "compliance_type": sm1_comp_type, "nplc": nplc} },
+                { "action": "smu/source-mode", "params": {"channel": sweep_ch, "mode": sm1_mode} },
                 # Sweep (Constant Hold)
                 {
                     "action": "smu/sweep",
                     "params": {
                         "channel": sweep_ch,
                         "start": hold_v, "stop": hold_v, "points": steady_points,
-                        "delay": steady_delay, "compliance": compliance,
+                        "delay": steady_delay, "compliance": sm1_comp,
                         "sweep_type": "single", "scale": "linear",
                         "keep_output_on": True # Keep ON for the subsequent IV
                     },
@@ -221,17 +227,17 @@ def generate_dark_light_sweep_batch(params: Dict[str, Any], order: str = "dark_f
              ])
              
         # 2. IV Sweep
-        # If steady state ran, output is already ON. If not, we start fresh.
         loop_steps.extend([
-            { "action": "smu/configure", "params": {"channel": sweep_ch, "compliance": compliance, "nplc": nplc} },
-            { "action": "smu/source-mode", "params": {"channel": sweep_ch, "mode": "VOLT"} },
+            { "action": "smu/configure", "params": {"channel": sweep_ch, "compliance": sm1_comp, "compliance_type": sm1_comp_type, "nplc": nplc} },
+            { "action": "smu/source-mode", "params": {"channel": sweep_ch, "mode": sm1_mode} },
             {
                 "action": "smu/sweep",
                 "params": {
                     "channel": sweep_ch,
                     "start": iv_start, "stop": iv_stop, "points": iv_points,
-                    "delay": iv_delay, "compliance": compliance,
+                    "delay": iv_delay, "compliance": sm1_comp, "nplc": nplc,
                     "sweep_type": sweep_type, "scale": scale, "direction": direction,
+                    "source_mode": sm1_mode,
                     "keep_output_on": keep_output_on if is_last else False 
                 },
                 "capture_as": f"{mode_name}_iv_data"
@@ -270,8 +276,8 @@ def generate_dark_light_sweep_batch(params: Dict[str, Any], order: str = "dark_f
     
     block_light = [
         # Turn Light ON (Bias Ch)
-        { "action": "smu/configure", "params": {"channel": light_ch, "compliance": light_compliance, "nplc": nplc} },
-        { "action": "smu/source-mode", "params": {"channel": light_ch, "mode": "CURR"} },
+        { "action": "smu/configure", "params": {"channel": light_ch, "compliance": sm2_comp, "compliance_type": sm2_comp_type, "nplc": nplc} },
+        { "action": "smu/source-mode", "params": {"channel": light_ch, "mode": sm2_mode} },
         { "action": "smu/set", "params": {"channel": light_ch, "value": light_current} },
         { "action": "smu/output", "params": {"channel": light_ch, "enabled": True} },
         { "action": "wait", "params": {"seconds": 2.0} }, # Warmup
@@ -325,7 +331,7 @@ if selected_template == "Multipixel IV Sweep":
     st.markdown("#### Sample settings")
     col1, col2 = st.columns(2)
     with col1:
-        params["sample_name"] = st.text_input("Sample Name", "AA1")
+        params["sample_name"] = st.text_input("Sample Name", "TEST")
     with col2:
         params["pixel_str"] = st.text_input("Pixels (e.g., '1-6', '1,3,5')", "1-6")
         
@@ -353,7 +359,7 @@ elif selected_template in ["Dark -> Light (Batch)", "Light -> Dark (Batch)"]:
     st.markdown("#### Sample & Sequence")
     col1, col2 = st.columns(2)
     with col1:
-        params["sample_name"] = st.text_input("Sample Name", "AA1")
+        params["sample_name"] = st.text_input("Sample Name", "TEST")
         params["wait_time"] = st.number_input("Pixel Wait Time (s)", value=0.5, help="Stabilization time after switching relay")
     with col2:
         params["pixel_str"] = st.text_input("Pixels (e.g., '1-6')", "1-6")
@@ -391,13 +397,29 @@ elif selected_template in ["Dark -> Light (Batch)", "Light -> Dark (Batch)"]:
              params["light_hold_v"] = st.number_input("Light Hold Voltage (V)", value=0.0)
              
     st.divider()
+    st.markdown("#### SMU Configuration")
+    col_c1, col_c2 = st.columns(2)
+    with col_c1:
+        st.write("**SMU 1 (Sweep)**")
+        params["sm1_mode"] = st.selectbox("Source Mode (SMU 1)", ["VOLT", "CURR"], index=0)
+        params["sm1_compliance"] = st.number_input("Compliance (SMU 1)", value=0.1, format="%.4f")
+        params["sm1_compliance_type"] = st.selectbox("Compliance Type (SMU 1)", ["CURR", "VOLT"], index=0 if params["sm1_mode"]=="VOLT" else 1)
+        params["sweep_channel"] = st.number_input("Sweep Channel #", value=1, min_value=1, max_value=2)
+        
+    with col_c2:
+        st.write("**SMU 2 (Bias/Light)**")
+        params["sm2_mode"] = st.selectbox("Source Mode (SMU 2)", ["VOLT", "CURR"], index=1)
+        params["sm2_compliance"] = st.number_input("Compliance (SMU 2)", value=5.0)
+        params["sm2_compliance_type"] = st.selectbox("Compliance Type (SMU 2)", ["VOLT", "CURR"], index=0 if params["sm2_mode"]=="CURR" else 1)
+        params["light_channel"] = st.number_input("Light Channel #", value=2, min_value=1, max_value=2)
+
+    st.divider()
     st.markdown("#### Light Source Config (Bias Channel)")
     col_l1, col_l2 = st.columns(2)
     with col_l1:
-        params["light_channel"] = st.number_input("Light Ch", value=2, min_value=1, max_value=2)
-        params["light_current"] = st.number_input("Light Current (A)", value=0.001, format="%.6f")
+        params["light_current"] = st.number_input("Light Current/Voltage Value", value=0.001, format="%.6f", help="Target value for the bias SMU")
     with col_l2:
-        params["light_compliance"] = st.number_input("Light Compliance (V)", value=5.0)
+        st.empty()
 
 st.divider()
 

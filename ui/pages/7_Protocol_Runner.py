@@ -203,82 +203,92 @@ with st.expander("Run Parameters (Overrides)", expanded=True):
         current_fname_sample = save_steps[0]["params"].get("filename", "data")
         current_folder = save_steps[0]["params"].get("folder", "./data")
         
-        st.markdown("#### Filename & Folder")
-        c_mode = st.radio("Filename Override Mode", ["Find & Replace", "Literal (Global)"], horizontal=True)
+        st.markdown("### 1. Filename & Folder Replacement")
+        c_mode = st.radio("Mode", ["Find & Replace", "Literal (Global)"], horizontal=True, key="fname_mode")
         
+        f1, f2 = st.columns(2)
         if c_mode == "Literal (Global)":
-            with col1:
+            with f1:
                 new_fname = st.text_input("New Filename (Global)", current_fname_sample, help="Updates ALL save steps to this exact string. Use {$pixel} for variables.")
                 for step in save_steps:
                     step["params"]["filename"] = new_fname
         else:
-            with col1:
-                s_find = st.text_input("Find string", "AA1")
-                s_replace = st.text_input("Replace with", "BB1")
+            with f1:
+                s_find = st.text_input("Find", "TEST", help="Usually 'TEST'")
+                s_replace = st.text_input("Replace with", "AA1")
                 if st.checkbox("Apply Replacement", value=True):
                     for step in save_steps:
                         old_f = step["params"].get("filename", "")
                         step["params"]["filename"] = old_f.replace(s_find, s_replace)
         
-        with col2:
+        with f2:
             new_folder = st.text_input("Data Folder (Global)", current_folder)
             for step in save_steps:
                 step["params"]["folder"] = new_folder
     
-    # 2. Pixels (Loops)
-    loop_steps = find_all_loops(new_steps, "pixel")
-    if loop_steps:
-        # Use first loop as default for UI
-        current_seq = loop_steps[0]["params"].get("sequence", [])
-        # Format as string
-        if isinstance(current_seq, list):
-            seq_str = ",".join(map(str, current_seq))
-        else:
-            seq_str = "1-6"
-            
-        with col1:
-            new_seq_str = st.text_input("Pixels (Global Override)", seq_str, help="Updates ALL loops with the 'pixel' variable.")
-            # Parse logic
-            try:
-                pixels = []
-                for part in new_seq_str.split(','):
-                    part = part.strip()
-                    if part:
-                        if '-' in part:
-                            s, e = map(int, part.split('-'))
-                            pixels.extend(range(s, e+1))
-                        else:
-                            pixels.append(int(part))
-                final_pixels = sorted(list(set(pixels)))
-                for step in loop_steps:
-                    step["params"]["sequence"] = final_pixels
-            except:
-                st.error("Invalid pixel format")
-                
-    # 3. Sweep Params
-    sweep_steps = find_all_steps(new_steps, "smu/sweep")
-    if sweep_steps:
-        # Use first sweep as default for UI
-        p_ref = sweep_steps[0]["params"]
-        st.markdown("#### Sweep Settings (Global Override)")
-        c1, c2, c3, c4 = st.columns(4)
+    st.divider()
+    with st.expander("Advanced Parameter Overrides (Apply to All Steps)"):
+        col1, col2 = st.columns(2)
         
-        with c1:
-            new_start = st.number_input("Start (V)", value=float(p_ref.get("start", 0.0)))
-        with c2:
-            new_stop = st.number_input("Stop (V)", value=float(p_ref.get("stop", 1.0)))
-        with c3:
-            new_pts = st.number_input("Points", value=int(p_ref.get("points", 11)))
-        with c4:
-            new_comp = st.number_input("Compl. (A)", value=float(p_ref.get("compliance", 0.1)), format="%.1e")
+        # 2. Pixels (Loops)
+        loop_steps = find_all_loops(new_steps, "pixel")
+        if loop_steps:
+            # Use first loop as default for UI
+            current_seq = loop_steps[0]["params"].get("sequence", [])
+            # Format as string
+            if isinstance(current_seq, list):
+                seq_str = ",".join(map(str, current_seq))
+            else:
+                seq_str = "1-6"
+                
+            with col1:
+                new_seq_str = st.text_input("Pixels (Global Override)", seq_str, help="Updates ALL loops with the 'pixel' variable.")
+                # Parse logic
+                try:
+                    pixels = []
+                    for part in new_seq_str.split(','):
+                        part = part.strip()
+                        if part:
+                            if '-' in part:
+                                s, e = map(int, part.split('-'))
+                                pixels.extend(range(s, e+1))
+                            else:
+                                pixels.append(int(part))
+                    final_pixels = sorted(list(set(pixels)))
+                    for step in loop_steps:
+                        step["params"]["sequence"] = final_pixels
+                except:
+                    st.error("Invalid pixel format")
+                    
+        # 3. Sweep Params
+        sweep_steps = find_all_steps(new_steps, "smu/sweep")
+        if sweep_steps:
+            # Use first sweep as default for UI
+            p_ref = sweep_steps[0]["params"]
+            st.markdown("#### Sweep Settings (Global Override)")
+            ca, cb, cc, cd = st.columns(4)
             
-        # Apply to all
-        for step in sweep_steps:
-            p = step["params"]
-            p["start"] = new_start
-            p["stop"] = new_stop
-            p["points"] = new_pts
-            p["compliance"] = new_comp
+            with ca:
+                new_start = st.number_input("Start (V)", value=float(p_ref.get("start", 0.0)))
+            with cb:
+                new_stop = st.number_input("Stop (V)", value=float(p_ref.get("stop", 1.0)))
+            with cc:
+                new_pts = st.number_input("Points", value=int(p_ref.get("points", 11)))
+            with cd:
+                new_comp = st.number_input("Compl. (A)", value=float(p_ref.get("compliance", 0.1)), format="%.1e")
+                
+            # Apply to all sweeps
+            for step in sweep_steps:
+                p = step["params"]
+                p["start"] = new_start
+                p["stop"] = new_stop
+                p["points"] = new_pts
+                p["compliance"] = new_comp
+
+            # Also sync any smu/configure steps to the same compliance for consistency
+            config_steps = find_all_steps(new_steps, "smu/configure")
+            for step in config_steps:
+                step["params"]["compliance"] = new_comp
             
 # --- Execution & Plotting ---
 st.divider()
