@@ -93,7 +93,8 @@ def create_smu(
     address: str,
     channel: int = 1,
     mock: bool = False,
-    name: str = "SMU"
+    name: str = "SMU",
+    **kwargs
 ):
     """
     Factory function to create the appropriate SMU controller.
@@ -104,6 +105,7 @@ def create_smu(
         channel: Channel number (1 or 2, for dual-channel SMUs)
         mock: If True, use mock mode (no hardware)
         name: Name for logging
+        **kwargs: Additional arguments passed to controller constructor
         
     Returns:
         Appropriate SMU controller instance
@@ -124,15 +126,15 @@ def create_smu(
     # Import and instantiate the appropriate controller
     if smu_type == SMUType.KEYSIGHT_B2901:
         from smu_keysight_b2901 import KeysightB2901Controller
-        return KeysightB2901Controller(address=address, channel=channel, mock=mock, name=name)
+        return KeysightB2901Controller(address=address, channel=channel, mock=mock, name=name, **kwargs)
     
     elif smu_type == SMUType.KEYSIGHT_B2902:
         from smu_keysight_b2902 import KeysightB2902Controller
-        return KeysightB2902Controller(address=address, channel=channel, mock=mock, name=name)
+        return KeysightB2902Controller(address=address, channel=channel, mock=mock, name=name, **kwargs)
     
     elif smu_type == SMUType.KEITHLEY_2400:
         from smu_keithley_2400 import Keithley2400Controller
-        return Keithley2400Controller(address=address, channel=channel, mock=mock, name=name)
+        return Keithley2400Controller(address=address, channel=channel, mock=mock, name=name, **kwargs)
     
     elif smu_type == SMUType.KEITHLEY_2600:
         raise NotImplementedError("Keithley 2600 series support not yet implemented")
@@ -146,7 +148,8 @@ def create_smu_from_string(
     address: str,
     channel: int = 1,
     mock: bool = False,
-    name: str = "SMU"
+    name: str = "SMU",
+    **kwargs
 ):
     """
     Factory function that accepts SMU type as a string.
@@ -159,6 +162,7 @@ def create_smu_from_string(
         channel: Channel number
         mock: Mock mode flag
         name: Name for logging
+        **kwargs: Additional arguments passed to controller constructor
         
     Returns:
         Appropriate SMU controller instance
@@ -169,7 +173,7 @@ def create_smu_from_string(
         valid_types = [t.value for t in SMUType]
         raise ValueError(f"Invalid SMU type '{smu_type_str}'. Valid types: {valid_types}")
     
-    return create_smu(smu_type, address, channel, mock, name)
+    return create_smu(smu_type, address, channel, mock, name, **kwargs)
 
 
 def list_available_smu_types() -> list:

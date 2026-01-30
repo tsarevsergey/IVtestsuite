@@ -25,11 +25,15 @@ class KeysightB2902Controller(BaseSMU):
     - MEAS:VOLT? (@1), OUTP1?
     """
     
-    def __init__(self, address: str, channel: int = 1, mock: bool = False, name: str = "SMU"):
+    def __init__(self, address: str, channel: int = 1, mock: bool = False, name: str = "SMU", existing_resource=None):
         if channel not in [1, 2]:
             raise ValueError(f"Invalid channel: {channel}. Must be 1 or 2.")
         super().__init__(address, channel, mock, name)
-        self.resource = None
+        
+        # Resource sharing
+        self.existing_resource = existing_resource
+        self.resource = existing_resource
+        
         self.rm = None
         self.software_current_limit = None
         self.reset_on_connect = True  # Default to resetting state
@@ -97,6 +101,29 @@ class KeysightB2902Controller(BaseSMU):
             self.to_state(SMUState.IDLE)
             return
         
+        # If sharing resource, skip opening new one
+        if self.existing_resource:
+            self.resource = self.existing_resource
+            self.logger.info(f"Using SHARED resource for Channel {self.channel}")
+            # We skip IDN check assuming the primary holder verified it
+            # We still need to configure initial state if requested
+            
+            # Reset logic (only if requested)
+            if self.reset_on_connect:
+                try:
+                    self.resource.write("*RST")
+                    time.sleep(0.1)
+                except Exception as e:
+                    self.logger.warning(f"Reset failed on shared resource: {e}")
+            
+            try:
+                self.resource.write(self._sour("FUNC:MODE VOLT"))
+                self._source_mode = "VOLT"
+                self.to_state(SMUState.IDLE)
+            except Exception as e:
+                self.handle_error(f"Failed to init shared channel: {e}")
+            return
+
         if pyvisa is None:
             self.handle_error("PyVISA not installed")
             return

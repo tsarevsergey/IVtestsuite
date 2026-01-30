@@ -217,7 +217,12 @@ with col_exec:
     st.subheader("🚀 Execute Request")
     if st.button("Execute Request", type="primary"):
         with st.spinner("Executing..."):
-            response = req(method, path, payload if method == "POST" else None)
+            response = req(
+                method, 
+                path, 
+                json_data=payload if method == "POST" else None,
+                params=payload if method == "GET" else None
+            )
             
             st.markdown("**Response Status**")
             if response.get("success", True):

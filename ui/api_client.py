@@ -3,14 +3,14 @@ from typing import Dict, Any, Optional
 
 BACKEND_URL = "http://localhost:5000"
 
-def req(method: str, path: str, json_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def req(method: str, path: str, json_data: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Make an HTTP request to the backend.
     """
     url = f"{BACKEND_URL}{path}"
     try:
         if method.upper() == "GET":
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, params=params, timeout=10)
         elif method.upper() == "POST":
             response = requests.post(url, json=json_data, timeout=10)
         else:

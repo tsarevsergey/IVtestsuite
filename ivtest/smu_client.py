@@ -126,17 +126,21 @@ class SMUClient:
                 if not ctrl:
                     logger.info(f"Auto-connecting Channel {channel} on existing B2902 connection")
                     try:
+                        # Shared Resource Logic: Find existing controller
+                        existing_ctrl = next(iter(self._controllers.values()), None)
+                        existing_res = getattr(existing_ctrl, 'resource', None)
+                        
                         # Instantiate new controller for this channel
                         new_ctrl = create_smu_from_string(
                             smu_type_str="keysight_b2902",
                             address=self._status.address,
                             channel=channel,
                             mock=self._status.mock,
-                            name=f"SMU_{channel}"
+                            name=f"SMU_{channel}",
+                            existing_resource=existing_res
                         )
                         
                         # Connect WITHOUT reset (preserve other channel state)
-                        # We assume the driver supports reset_on_connect=False (we just added it)
                         if hasattr(new_ctrl, 'reset_on_connect'):
                             new_ctrl.reset_on_connect = False
                         
@@ -168,25 +172,35 @@ class SMUClient:
                 self.disconnect()
             
             # If connecting a NEW channel on SAME address, keep others
-            # But if channel exists, reconnect it
             try:
-                # Use factory to create appropriate SMU controller
-                # For non-B2902, we might want to ensure only one channel is active? 
-                # But factory handles this.
+                # Shared Resource Logic
+                existing_res = None
+                # Only share if B2902 (multi-channel capable) and address matches
+                # We check smu_type argument OR self._status.smu_type if argument is 'auto'
+                
+                # Resolving type hint slightly strictly here to enable sharing check
+                target_type = smu_type
+                if target_type == "auto" and self._status.connected:
+                    target_type = self._status.smu_type
+                
+                if self._controllers and (target_type == "keysight_b2902" or self._status.smu_type == "keysight_b2902") and address == self._status.address:
+                    existing_ctrl = next(iter(self._controllers.values()), None)
+                    existing_res = getattr(existing_ctrl, 'resource', None)
                 
                 # Check if this is the FIRST connection
                 is_first = len(self._controllers) == 0
                 
                 new_ctrl = create_smu_from_string(
-                    smu_type_str=smu_type,
+                    smu_type_str=target_type,
                     address=address,
                     channel=channel,
                     mock=mock,
-                    name=f"SMU_{channel}"
+                    name=f"SMU_{channel}",
+                    existing_resource=existing_res
                 )
                 
                 # If adding second channel to known B2902, don't reset
-                if not is_first and smu_type == "keysight_b2902":
+                if not is_first and (smu_type == "keysight_b2902" or new_ctrl.get_smu_type() == "keysight_b2902"):
                      if hasattr(new_ctrl, 'reset_on_connect'):
                         new_ctrl.reset_on_connect = False
                 
@@ -202,15 +216,15 @@ class SMUClient:
                 self._status.mock = mock
                 self._status.channel = channel
                 self._status.address = address
-                self._status.smu_type = smu_type
+                self._status.smu_type = new_ctrl.get_smu_type() # Update with resolved type
                 self._status.state = new_ctrl.state.value
                 
-                logger.info(f"SMU connected: type={smu_type}, address={address}, ch={channel}, mock={mock}")
+                logger.info(f"SMU connected: type={self._status.smu_type}, address={address}, ch={channel}, mock={mock}")
                 
                 return {
                     "success": True, 
                     "message": f"Connected to {new_ctrl.__class__.__name__}",
-                    "address": address, "channel": channel, "smu_type": smu_type, "mock": mock
+                    "address": address, "channel": channel, "smu_type": self._status.smu_type, "mock": mock
                 }
                 
             except Exception as e:
