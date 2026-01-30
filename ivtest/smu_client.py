@@ -41,6 +41,7 @@ class SMUStatus:
     source_mode: Optional[str] = None
     compliance: Optional[float] = None
     compliance_type: Optional[str] = None
+    channels: Dict[int, Dict[str, Any]] = field(default_factory=dict)
 
 
 class SMUClient:
@@ -96,8 +97,47 @@ class SMUClient:
     
     @property
     def status(self) -> SMUStatus:
-        """Get current SMU status."""
-        # Update status from active controller
+        """Get current SMU status including all channels."""
+        # Update aggregate status from active controller (legacy behavior)
+        active_ctrl = self._smu
+        
+        # If no active controller but we have others, pick one for "main" status
+        if not active_ctrl and self._controllers:
+            active_ctrl = next(iter(self._controllers.values()))
+            
+        if active_ctrl:
+            self._status.connected = True
+            self._status.state = active_ctrl.state.value if hasattr(active_ctrl, 'state') else "UNKNOWN"
+            # Ensure safe access to attributes that might not exist on all controllers
+            self._status.output_enabled = getattr(active_ctrl, '_output_enabled', False)
+            self._status.source_mode = getattr(active_ctrl, '_source_mode', None)
+            
+            # compliance info depends on implementation
+            # We don't easily track current compliance value in base class unless we stored it
+            # For now we might return None or cached values if we had them
+        
+        # Collect detailed status for ALL channels
+        channel_status = {}
+        for ch, ctrl in self._controllers.items():
+            try:
+                # Basic status
+                ch_stat = {
+                    'state': ctrl.state.value if hasattr(ctrl, 'state') else "UNKNOWN",
+                    'output_enabled': getattr(ctrl, '_output_enabled', False),
+                    'source_mode': getattr(ctrl, '_source_mode', None),
+                    # We can try to read cached values if available
+                    'compliance': getattr(ctrl, '_last_compliance', None), # Assuming we might add this later
+                    'compliance_type': getattr(ctrl, '_last_compliance_type', None),
+                    'voltage': getattr(ctrl, '_last_set_v', None),
+                    'current': getattr(ctrl, '_last_set_i', None)
+                }
+                channel_status[ch] = ch_stat
+            except Exception as e:
+                logger.warning(f"Error reading status for Ch {ch}: {e}")
+        
+        self._status.channels = channel_status
+            
+        return self._status
         ctrl = self._smu
         if ctrl:
             self._status.state = ctrl.state.value

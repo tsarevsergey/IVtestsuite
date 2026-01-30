@@ -72,10 +72,21 @@ class ListSweepResponse(BaseModel):
     channel: Optional[int] = None
 
 
+class ChannelStatus(BaseModel):
+    id: int
+    state: str
+    output_enabled: bool
+    source_mode: Optional[str]
+    compliance: Optional[float]
+    compliance_type: Optional[str]
+    voltage: Optional[float] = None
+    current: Optional[float] = None
+
+
 class SMUStatusResponse(BaseModel):
     connected: bool
     mock: bool
-    channel: int
+    channel: int  # Active channel
     address: str
     smu_type: str
     state: str
@@ -83,6 +94,7 @@ class SMUStatusResponse(BaseModel):
     source_mode: Optional[str]
     compliance: Optional[float]
     compliance_type: Optional[str]
+    channels: Dict[int, ChannelStatus] = {}  # Detailed per-channel status
 
 
 class OperationResponse(BaseModel):
@@ -112,6 +124,22 @@ class SweepResponse(BaseModel):
 async def get_smu_status():
     """Get current SMU connection status."""
     status = smu_client.status
+    
+    # Map internal SMUStatus.channels (dict of dicts/objects) to ChannelStatus models
+    channels_data = {}
+    if hasattr(status, 'channels'):
+        for ch_id, ch_data in status.channels.items():
+            channels_data[ch_id] = ChannelStatus(
+                id=ch_id,
+                state=ch_data.get('state', 'OFF'),
+                output_enabled=ch_data.get('output_enabled', False),
+                source_mode=ch_data.get('source_mode'),
+                compliance=ch_data.get('compliance'),
+                compliance_type=ch_data.get('compliance_type'),
+                voltage=ch_data.get('voltage'),
+                current=ch_data.get('current')
+            )
+
     return SMUStatusResponse(
         connected=status.connected,
         mock=status.mock,
@@ -122,7 +150,8 @@ async def get_smu_status():
         output_enabled=status.output_enabled,
         source_mode=status.source_mode,
         compliance=status.compliance,
-        compliance_type=status.compliance_type
+        compliance_type=status.compliance_type,
+        channels=channels_data
     )
 
 
