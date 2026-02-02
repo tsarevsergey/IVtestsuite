@@ -16,7 +16,7 @@
   "sm2_mode": "CURR",
   "sm2_compliance": 9.0,
   "sm2_compliance_type": "VOLT",
-  "light_current": 0.0022363155021357254,
+  "light_current": 0.0022355172367499077,
   "sample_name": "TEST",
   "pixel_str": "1,2,3",
   "wait_time": 0.5

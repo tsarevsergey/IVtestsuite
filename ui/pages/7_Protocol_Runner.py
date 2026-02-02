@@ -320,6 +320,8 @@ st.divider()
 # Session State for Plotting
 if "traces" not in st.session_state:
     st.session_state.traces = []
+if "steady_traces" not in st.session_state:
+    st.session_state.steady_traces = []
 if "running" not in st.session_state:
     st.session_state.running = False
 if "history_cursor" not in st.session_state:
@@ -341,6 +343,7 @@ with col_run:
             if resp.status_code == 200:
                 st.session_state.running = True
                 st.session_state.traces = [] 
+                st.session_state.steady_traces = []
                 st.session_state.history_cursor = 0
                 st.session_state.run_start_time = time.time()
                 st.success("Started!")
@@ -484,6 +487,83 @@ else:
     # Silently wait during scan start
     plot_ph.empty()
 
+# --- Steady State Plot (Current vs Time) ---
+if st.session_state.steady_traces:
+    st.divider()
+    st.markdown("### ⏱️ Steady State Measurements (Current vs Time)")
+    
+    steady_plot_ph = st.empty()
+    
+    df_steady_all = pd.DataFrame()
+    steady_traces_to_plot = st.session_state.steady_traces if plot_mode == "Accumulate" else [st.session_state.steady_traces[-1]]
+    
+    for i, t in enumerate(steady_traces_to_plot):
+        df = pd.DataFrame(t["data"])
+        var_name = t.get("variable", "steady_data").replace("_steady_data", "").upper()
+        label = f"Pixel {t['pixel']} ({var_name})" if t['pixel'] is not None else f"Trace {i+1} ({var_name})"
+        
+        cols = [c.lower() for c in df.columns]
+        df.columns = cols
+        df["trace"] = label
+        
+        # Add time column based on index (assuming delay from sweep params)
+        # For now use index as time proxy
+        i_col = None
+        for c in ["current", "current (a)", "amp"]:
+            if c in df.columns:
+                i_col = c
+                break
+        
+        if i_col:
+            df["time_idx"] = range(len(df))
+            df["abs_current"] = df[i_col].abs()
+            df_steady_all = pd.concat([df_steady_all, df], ignore_index=True)
+    
+    if not df_steady_all.empty:
+        # Build time-based plot
+        fig_steady = px.line(
+            df_steady_all, 
+            x="time_idx", 
+            y="abs_current" if scale_type == "Log" else df_steady_all.columns[df_steady_all.columns.str.contains("current", case=False)][0],
+            color="trace", 
+            markers=True,
+            template="none",
+            color_discrete_sequence=px.colors.qualitative.Safe
+        )
+        
+        fig_steady.update_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Inter, sans-serif", size=14),
+            xaxis=dict(
+                title=dict(text="Measurement Point", font=dict(size=16, weight="bold")),
+                gridcolor="rgba(128, 128, 128, 0.2)",
+                zerolinecolor="rgba(128, 128, 128, 0.5)",
+                showgrid=True,
+                showline=True, linewidth=2, linecolor='rgba(128, 128, 128, 0.5)', mirror=True
+            ),
+            yaxis=dict(
+                title=dict(text="|Current| (A)" if scale_type == "Log" else "Current (A)", font=dict(size=16, weight="bold")),
+                gridcolor="rgba(128, 128, 128, 0.2)",
+                zerolinecolor="rgba(128, 128, 128, 0.5)",
+                showgrid=True,
+                showline=True, linewidth=2, linecolor='rgba(128, 128, 128, 0.5)', mirror=True
+            ),
+            legend=dict(
+                bgcolor="rgba(128, 128, 128, 0.1)",
+                bordercolor="rgba(128, 128, 128, 0.2)",
+                borderwidth=1,
+                title_font=dict(size=14, weight="bold")
+            ),
+            margin=dict(l=60, r=20, t=40, b=60),
+            height=400
+        )
+        
+        if scale_type == "Log":
+            fig_steady.update_yaxes(type="log")
+        
+        steady_plot_ph.plotly_chart(fig_steady, use_container_width=True, key="live_steady_plot")
+
 # --- Execution Logic (Rerun Loop) ---
 if st.session_state.running:
     if st.button("STOP SCAN", type="primary"):
@@ -526,30 +606,35 @@ if st.session_state.running:
                 # Parse Traces from new events
                 for event in new_events:
                     var_name = event.get("variable", "")
-                    if var_name.endswith("iv_data"):
-                        val = event.get("value")
-                        context = event.get("context", {})
-                        pixel_id = context.get("pixel")
+                    val = event.get("value")
+                    context = event.get("context", {})
+                    pixel_id = context.get("pixel")
+                    
+                    # Determine if IV scan or steady state
+                    is_iv = var_name.endswith("iv_data")
+                    is_steady = var_name.endswith("steady_data")
+                    
+                    if (is_iv or is_steady) and val and isinstance(val, dict) and "results" in val:
+                        results = val["results"]
+                        target_list = st.session_state.traces if is_iv else st.session_state.steady_traces
                         
-                        if val and isinstance(val, dict) and "results" in val:
-                            results = val["results"]
-                            if isinstance(results, dict):
-                                # Simultaneous sweep results is {ch: [points]}
-                                for ch, data in results.items():
-                                    st.session_state.traces.append({
-                                        "pixel": pixel_id,
-                                        "channel": int(ch),
-                                        "data": data,
-                                        "variable": var_name
-                                    })
-                            else:
-                                # Normal sweep results is [points]
-                                st.session_state.traces.append({
+                        if isinstance(results, dict):
+                            # Simultaneous sweep results is {ch: [points]}
+                            for ch, data in results.items():
+                                target_list.append({
                                     "pixel": pixel_id,
-                                    "channel": val.get("channel", 1),
-                                    "data": results,
+                                    "channel": int(ch),
+                                    "data": data,
                                     "variable": var_name
                                 })
+                        else:
+                            # Normal sweep results is [points]
+                            target_list.append({
+                                "pixel": pixel_id,
+                                "channel": val.get("channel", 1),
+                                "data": results,
+                                "variable": var_name
+                            })
             
             # Debug (optional context)
             with st.expander("History Status (Debug)", expanded=False):
