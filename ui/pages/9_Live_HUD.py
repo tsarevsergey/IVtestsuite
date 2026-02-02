@@ -6,6 +6,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from pathlib import Path
 import sys
+import os
+from datetime import datetime
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -437,6 +439,21 @@ with col_left:
                     st.session_state.last_iv_trace = data["results"]
             st.rerun()
 
+    # --- IV Data Export ---
+    st.markdown("---")
+    iv_save_folder = st.text_input("Save Folder", value="../data", key="iv_save_folder")
+    iv_save_name = st.text_input("Filename", value=f"iv_scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv", key="iv_save_name")
+    if st.button("💾 SAVE IV DATA", key="save_iv", use_container_width=True):
+        if st.session_state.last_iv_trace:
+            save_path = Path(iv_save_folder)
+            save_path.mkdir(parents=True, exist_ok=True)
+            df_save = pd.DataFrame(st.session_state.last_iv_trace)
+            full_path = save_path / iv_save_name
+            df_save.to_csv(full_path, index=False)
+            st.toast(f"IV saved to {full_path}")
+        else:
+            st.toast("No IV data to save!")
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ========== RIGHT COLUMN ==========
@@ -460,9 +477,9 @@ with col_right:
         if st.button("APPLY SETTINGS", key="apply_mon", use_container_width=True):
             api_call("POST", "/smu/configure", json={"channel": mon_chan, "nplc": mon_nplc, "compliance": 0.1})
             api_call("POST", "/smu/set", json={"channel": mon_chan, "value": mon_v})
-            api_call("POST", "/smu/output", json={"channel": mon_chan, "enabled": True})
+            # NOTE: Output NOT enabled here - user must click START MONITORING
             st.session_state.monitor_configured = True
-            st.toast("Monitor Configured")
+            st.toast("Monitor Configured (Ready)")
 
     with a2:
         btn_label = "■ STOP MONITORING" if st.session_state.monitoring else "▶ START MONITORING"
@@ -528,6 +545,23 @@ with col_right:
 
     st.markdown('<div class="chart-container">', unsafe_allow_html=True)
     st.plotly_chart(monitor_fig, use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # --- Monitor Data Export ---
+    st.markdown('<div class="industrial-panel" style="margin-top:1rem;">', unsafe_allow_html=True)
+    st.markdown('<div class="panel-title">Export Monitor Data</div>', unsafe_allow_html=True)
+    mon_save_folder = st.text_input("Save Folder", value="../data", key="mon_save_folder")
+    mon_save_name = st.text_input("Filename", value=f"monitor_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv", key="mon_save_name")
+    if st.button("💾 SAVE MONITOR DATA", key="save_mon", use_container_width=True):
+        if st.session_state.live_traces:
+            save_path = Path(mon_save_folder)
+            save_path.mkdir(parents=True, exist_ok=True)
+            df_save = pd.DataFrame(st.session_state.live_traces)
+            full_path = save_path / mon_save_name
+            df_save.to_csv(full_path, index=False)
+            st.toast(f"Monitor data saved to {full_path}")
+        else:
+            st.toast("No monitor data to save!")
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
