@@ -57,9 +57,13 @@ class ArduinoSerialRelay:
     Protocol:
     - Baud rate: 112500
     - Commands: ASCII numbers with newline
-      - 1-12: Turn relay OFF
-      - 101-112: Turn relay ON
+      - OFF: relay_num (e.g., 1-12)
+      - ON: on_offset + relay_num (e.g., 101-112 for offset=100, or 11-18 for offset=10)
     - Response: Read available bytes after delay
+    
+    Board-specific offsets:
+    - Pixel board: on_offset=100 (commands 1-12 OFF, 101-112 ON)
+    - RGB board: on_offset=10 (commands 1-8 OFF, 11-18 ON)
     """
     
     DEFAULT_BAUD = 112500
@@ -70,6 +74,7 @@ class ArduinoSerialRelay:
         name: str,
         port: str,
         num_relays: int,
+        on_offset: int = 100,
         mock: bool = True,
         baud: int = DEFAULT_BAUD
     ):
@@ -80,12 +85,14 @@ class ArduinoSerialRelay:
             name: Board identifier (e.g., "PIXEL", "RGB")
             port: Serial port (e.g., "COM38")
             num_relays: Number of relays on this board
+            on_offset: Value to add for ON command (100 for Pixel, 10 for RGB)
             mock: Use mock mode (no hardware)
             baud: Baud rate (default 112500)
         """
         self.name = name
         self.port = port
         self.num_relays = num_relays
+        self.on_offset = on_offset
         self.mock = mock
         self.baud = baud
         
@@ -165,9 +172,11 @@ class ArduinoSerialRelay:
             # Coerce relay number to valid range (1 to num_relays)
             relay_num = min(max(relay_num, 1), self.num_relays)
             
-            # Calculate command: 100 + relay for ON, just relay for OFF
+            # Calculate command: on_offset + relay for ON, just relay for OFF
+            # Pixel board: on_offset=100 -> 101-112 for ON
+            # RGB board: on_offset=10 -> 11-18 for ON
             if on:
-                command = 100 + relay_num
+                command = self.on_offset + relay_num
             else:
                 command = relay_num
             
@@ -275,8 +284,8 @@ class ArduinoRelayController:
     Controller managing multiple Arduino relay boards.
     
     Default configuration:
-    - Pixel Arduino: COM38, 6 relays
-    - RGB Arduino: COM39, 3 relays
+    - Pixel Arduino: COM38, 6 relays (for photodetector pixel selection)
+    - RGB Arduino: COM39, 8 relays (for LED wavelength selection, per LabVIEW range 1-8)
     """
     
     # Default port configuration
@@ -294,18 +303,22 @@ class ArduinoRelayController:
         self.mock = mock
         self._lock = threading.Lock()
         
-        # Create board instances
+        # Create board instances with board-specific on_offset values
+        # Pixel: ON command = 100 + relay (e.g., 101 for relay 1 ON)
+        # RGB: ON command = 10 + relay (e.g., 11 for relay 1 ON)
         self.pixel_board = ArduinoSerialRelay(
             name="PIXEL",
             port=self.DEFAULT_PIXEL_PORT,
             num_relays=6,
+            on_offset=100,  # Commands: 1-6 OFF, 101-106 ON
             mock=mock
         )
         
         self.rgb_board = ArduinoSerialRelay(
             name="RGB",
             port=self.DEFAULT_RGB_PORT,
-            num_relays=3,
+            num_relays=8,  # LabVIEW uses range 1-8 for LED selection
+            on_offset=10,  # Commands: 1-8 OFF, 11-18 ON
             mock=mock
         )
         

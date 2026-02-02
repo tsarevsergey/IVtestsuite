@@ -44,7 +44,7 @@ class PixelSelectRequest(BaseModel):
 
 class LEDSelectRequest(BaseModel):
     """Select an LED channel (0-indexed)."""
-    channel_id: int = Field(..., ge=0, le=2, description="LED channel index (0-2)")
+    channel_id: int = Field(..., ge=0, le=7, description="LED channel index (0-7, per LabVIEW range 1-8)")
 
 
 class SetRelayRequest(BaseModel):

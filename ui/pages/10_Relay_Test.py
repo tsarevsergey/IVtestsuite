@@ -246,14 +246,34 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # RGB BOARD
 st.markdown('<div class="industrial-panel">', unsafe_allow_html=True)
-st.markdown('<div class="panel-title">RGB/LED Relays (1-3)</div>', unsafe_allow_html=True)
+st.markdown('<div class="panel-title">RGB/LED Relays (1-8)</div>', unsafe_allow_html=True)
 
 if not st.session_state.rgb_connected:
     st.warning("RGB Arduino not connected")
 else:
-    rc1, rc2, rc3, rc4, rc5, rc6 = st.columns(6)
-    for i, (on_col, off_col) in enumerate([(rc1, rc2), (rc3, rc4), (rc5, rc6)]):
+    # Row 1: Relays 1-4
+    st.markdown("**Relays 1-4**")
+    rc1, rc2, rc3, rc4, rc5, rc6, rc7, rc8 = st.columns(8)
+    for i, (on_col, off_col) in enumerate([(rc1, rc2), (rc3, rc4), (rc5, rc6), (rc7, rc8)]):
         relay_num = i + 1
+        with on_col:
+            if st.button(f"R{relay_num} ON", key=f"rgb_{relay_num}_on", use_container_width=True):
+                resp = api_call("POST", "/relays/set-relay", json={"board": "rgb", "relay": relay_num, "on": True})
+                if resp and resp.status_code == 200:
+                    st.session_state.last_response = str(resp.json())
+                st.rerun()
+        with off_col:
+            if st.button(f"R{relay_num} OFF", key=f"rgb_{relay_num}_off", use_container_width=True):
+                resp = api_call("POST", "/relays/set-relay", json={"board": "rgb", "relay": relay_num, "on": False})
+                if resp and resp.status_code == 200:
+                    st.session_state.last_response = str(resp.json())
+                st.rerun()
+    
+    # Row 2: Relays 5-8
+    st.markdown("**Relays 5-8**")
+    rc9, rc10, rc11, rc12, rc13, rc14, rc15, rc16 = st.columns(8)
+    for i, (on_col, off_col) in enumerate([(rc9, rc10), (rc11, rc12), (rc13, rc14), (rc15, rc16)]):
+        relay_num = i + 5
         with on_col:
             if st.button(f"R{relay_num} ON", key=f"rgb_{relay_num}_on", use_container_width=True):
                 resp = api_call("POST", "/relays/set-relay", json={"board": "rgb", "relay": relay_num, "on": True})
