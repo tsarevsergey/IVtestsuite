@@ -198,83 +198,76 @@ st.markdown('</div>', unsafe_allow_html=True)
 # ----------------------------
 # RELAY CONTROL PANELS
 # ----------------------------
-relay_col1, relay_col2 = st.columns(2)
 
 # PIXEL BOARD
-with relay_col1:
-    st.markdown('<div class="industrial-panel">', unsafe_allow_html=True)
-    st.markdown('<div class="panel-title">Pixel Relays (1-6)</div>', unsafe_allow_html=True)
+st.markdown('<div class="industrial-panel">', unsafe_allow_html=True)
+st.markdown('<div class="panel-title">Pixel Relays (1-6)</div>', unsafe_allow_html=True)
+
+if not st.session_state.pixel_connected:
+    st.warning("Pixel Arduino not connected")
+else:
+    # Row 1: Relays 1-3 with ON/OFF buttons (6 columns = 3 pairs)
+    st.markdown("**Relays 1-3**")
+    pc1, pc2, pc3, pc4, pc5, pc6 = st.columns(6)
+    for i, (on_col, off_col) in enumerate([(pc1, pc2), (pc3, pc4), (pc5, pc6)]):
+        relay_num = i + 1
+        with on_col:
+            if st.button(f"R{relay_num} ON", key=f"pixel_{relay_num}_on", use_container_width=True):
+                resp = api_call("POST", "/relays/set-relay", json={"board": "pixel", "relay": relay_num, "on": True})
+                if resp and resp.status_code == 200:
+                    st.session_state.last_response = str(resp.json())
+                st.rerun()
+        with off_col:
+            if st.button(f"R{relay_num} OFF", key=f"pixel_{relay_num}_off", use_container_width=True):
+                resp = api_call("POST", "/relays/set-relay", json={"board": "pixel", "relay": relay_num, "on": False})
+                if resp and resp.status_code == 200:
+                    st.session_state.last_response = str(resp.json())
+                st.rerun()
     
-    if not st.session_state.pixel_connected:
-        st.warning("Pixel Arduino not connected")
-    else:
-        # Create 2 rows of 3 buttons each
-        for row_start in [1, 4]:
-            cols = st.columns(3)
-            for i, col in enumerate(cols):
-                relay_num = row_start + i
-                with col:
-                    st.markdown(f"**Relay {relay_num}**")
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        if st.button("ON", key=f"pixel_{relay_num}_on", use_container_width=True):
-                            resp = api_call("POST", "/relays/set-relay", json={
-                                "board": "pixel",
-                                "relay": relay_num,
-                                "on": True
-                            })
-                            if resp and resp.status_code == 200:
-                                st.session_state.last_response = str(resp.json())
-                            st.rerun()
-                    with c2:
-                        if st.button("OFF", key=f"pixel_{relay_num}_off", use_container_width=True):
-                            resp = api_call("POST", "/relays/set-relay", json={
-                                "board": "pixel",
-                                "relay": relay_num,
-                                "on": False
-                            })
-                            if resp and resp.status_code == 200:
-                                st.session_state.last_response = str(resp.json())
-                            st.rerun()
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Row 2: Relays 4-6
+    st.markdown("**Relays 4-6**")
+    pc7, pc8, pc9, pc10, pc11, pc12 = st.columns(6)
+    for i, (on_col, off_col) in enumerate([(pc7, pc8), (pc9, pc10), (pc11, pc12)]):
+        relay_num = i + 4
+        with on_col:
+            if st.button(f"R{relay_num} ON", key=f"pixel_{relay_num}_on", use_container_width=True):
+                resp = api_call("POST", "/relays/set-relay", json={"board": "pixel", "relay": relay_num, "on": True})
+                if resp and resp.status_code == 200:
+                    st.session_state.last_response = str(resp.json())
+                st.rerun()
+        with off_col:
+            if st.button(f"R{relay_num} OFF", key=f"pixel_{relay_num}_off", use_container_width=True):
+                resp = api_call("POST", "/relays/set-relay", json={"board": "pixel", "relay": relay_num, "on": False})
+                if resp and resp.status_code == 200:
+                    st.session_state.last_response = str(resp.json())
+                st.rerun()
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 # RGB BOARD
-with relay_col2:
-    st.markdown('<div class="industrial-panel">', unsafe_allow_html=True)
-    st.markdown('<div class="panel-title">RGB/LED Relays (1-3)</div>', unsafe_allow_html=True)
-    
-    if not st.session_state.rgb_connected:
-        st.warning("RGB Arduino not connected")
-    else:
-        cols = st.columns(3)
-        for i, col in enumerate(cols):
-            relay_num = i + 1
-            with col:
-                st.markdown(f"**Relay {relay_num}**")
-                c1, c2 = st.columns(2)
-                with c1:
-                    if st.button("ON", key=f"rgb_{relay_num}_on", use_container_width=True):
-                        resp = api_call("POST", "/relays/set-relay", json={
-                            "board": "rgb",
-                            "relay": relay_num,
-                            "on": True
-                        })
-                        if resp and resp.status_code == 200:
-                            st.session_state.last_response = str(resp.json())
-                        st.rerun()
-                with c2:
-                    if st.button("OFF", key=f"rgb_{relay_num}_off", use_container_width=True):
-                        resp = api_call("POST", "/relays/set-relay", json={
-                            "board": "rgb",
-                            "relay": relay_num,
-                            "on": False
-                        })
-                        if resp and resp.status_code == 200:
-                            st.session_state.last_response = str(resp.json())
-                        st.rerun()
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('<div class="industrial-panel">', unsafe_allow_html=True)
+st.markdown('<div class="panel-title">RGB/LED Relays (1-3)</div>', unsafe_allow_html=True)
+
+if not st.session_state.rgb_connected:
+    st.warning("RGB Arduino not connected")
+else:
+    rc1, rc2, rc3, rc4, rc5, rc6 = st.columns(6)
+    for i, (on_col, off_col) in enumerate([(rc1, rc2), (rc3, rc4), (rc5, rc6)]):
+        relay_num = i + 1
+        with on_col:
+            if st.button(f"R{relay_num} ON", key=f"rgb_{relay_num}_on", use_container_width=True):
+                resp = api_call("POST", "/relays/set-relay", json={"board": "rgb", "relay": relay_num, "on": True})
+                if resp and resp.status_code == 200:
+                    st.session_state.last_response = str(resp.json())
+                st.rerun()
+        with off_col:
+            if st.button(f"R{relay_num} OFF", key=f"rgb_{relay_num}_off", use_container_width=True):
+                resp = api_call("POST", "/relays/set-relay", json={"board": "rgb", "relay": relay_num, "on": False})
+                if resp and resp.status_code == 200:
+                    st.session_state.last_response = str(resp.json())
+                st.rerun()
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ----------------------------
 # RESPONSE LOG
