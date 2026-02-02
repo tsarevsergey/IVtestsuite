@@ -1,0 +1,135 @@
+name: dark_light_test3
+description: Batch sweep on pixels [1, 2, 3]. dark_first. SteadyState=False.
+version: 2.0
+steps:
+- action: smu/connect
+  params:
+    mock: false
+    channel: 1
+- action: smu/connect
+  params:
+    mock: false
+    channel: 2
+- action: relays/connect
+  params:
+    mock: true
+- action: relays/all-off
+- action: smu/output
+  params:
+    channel: 1
+    enabled: false
+- action: control/loop
+  params:
+    variable: pixel
+    sequence: &id001
+    - 1
+    - 2
+    - 3
+  steps:
+  - action: relays/pixel
+    params:
+      pixel_id: $pixel
+  - action: wait
+    params:
+      seconds: 0.5
+  - action: smu/configure
+    params:
+      channel: 2
+      compliance: 0.02
+      compliance_type: CURR
+      nplc: 1.0
+  - action: smu/source-mode
+    params:
+      channel: 2
+      mode: VOLT
+  - action: smu/sweep
+    params:
+      channel: 2
+      start: 0.0
+      stop: 1.0
+      points: 21
+      delay: 0.1
+      compliance: 0.02
+      nplc: 1.0
+      sweep_type: double
+      scale: linear
+      direction: forward
+      source_mode: VOLT
+      keep_output_on: false
+    capture_as: dark_iv_data
+  - action: data/save
+    params:
+      data: $dark_iv_data
+      filename: TEST_{$pixel}DARK
+      folder: ./data
+- action: smu/configure
+  params:
+    channel: 1
+    compliance: 9.0
+    compliance_type: VOLT
+    nplc: 1.0
+- action: smu/source-mode
+  params:
+    channel: 1
+    mode: CURR
+- action: smu/set
+  params:
+    channel: 1
+    value: 0.001
+- action: smu/output
+  params:
+    channel: 1
+    enabled: true
+- action: wait
+  params:
+    seconds: 2.0
+- action: control/loop
+  params:
+    variable: pixel
+    sequence: *id001
+  steps:
+  - action: relays/pixel
+    params:
+      pixel_id: $pixel
+  - action: wait
+    params:
+      seconds: 0.5
+  - action: smu/configure
+    params:
+      channel: 2
+      compliance: 0.02
+      compliance_type: CURR
+      nplc: 1.0
+  - action: smu/source-mode
+    params:
+      channel: 2
+      mode: VOLT
+  - action: smu/sweep
+    params:
+      channel: 2
+      start: 0.0
+      stop: 1.0
+      points: 21
+      delay: 0.1
+      compliance: 0.02
+      nplc: 1.0
+      sweep_type: double
+      scale: linear
+      direction: forward
+      source_mode: VOLT
+      keep_output_on: true
+    capture_as: light_iv_data
+  - action: data/save
+    params:
+      data: $light_iv_data
+      filename: TEST_{$pixel}LIGHT
+      folder: ./data
+- action: smu/output
+  params:
+    channel: 2
+    enabled: false
+- action: smu/output
+  params:
+    channel: 1
+    enabled: false
+- action: relays/all-off
