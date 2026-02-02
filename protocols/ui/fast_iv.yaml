@@ -1,0 +1,30 @@
+name: ui_fast_iv
+description: Fast IV sweep on current pixel
+version: 1.0
+steps:
+  - action: smu/connect
+    params:
+      channel: 2
+      mock: false
+  - action: smu/configure
+    params:
+      channel: $channel
+      compliance: $compliance
+      compliance_type: CURR
+      nplc: $nplc
+  - action: smu/source-mode
+    params:
+      channel: $channel
+      mode: VOLT
+  - action: smu/sweep
+    params:
+      channel: $channel
+      start: $start
+      stop: $stop
+      points: $points
+      delay: $delay
+      sweep_type: $sweep_type
+      scale: $scale
+      direction: $direction
+      keep_output_on: false
+    capture_as: quick_iv_data

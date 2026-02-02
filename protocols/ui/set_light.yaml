@@ -1,0 +1,24 @@
+name: ui_set_light
+description: Control LED state and wavelength
+version: 1.0
+steps:
+  - action: relays/led
+    params:
+      channel_id: $led_relay  # 0 or 1
+  - action: smu/configure
+    params:
+      channel: $smu_channel
+      compliance: $compliance
+      compliance_type: VOLT
+  - action: smu/source-mode
+    params:
+      channel: $smu_channel
+      mode: CURR
+  - action: smu/set
+    params:
+      channel: $smu_channel
+      value: $current
+  - action: smu/output
+    params:
+      channel: $smu_channel
+      enabled: $enabled

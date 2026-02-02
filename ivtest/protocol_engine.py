@@ -88,12 +88,13 @@ class ProtocolEngine:
             "control/loop": self._action_control_loop,
         }
     
-    def run(self, steps: List[Dict[str, Any]]) -> ProtocolResult:
+    def run(self, steps: List[Dict[str, Any]], skip_cleanup: bool = False) -> ProtocolResult:
         """
         Execute a list of protocol steps.
         
         Args:
             steps: List of step dicts with 'action', 'params', optional 'capture_as'
+            skip_cleanup: If True, skip the safety cleanup at end of run
         
         Returns:
             ProtocolResult with execution details
@@ -178,7 +179,10 @@ class ProtocolEngine:
             )
         finally:
             self._running = False
-            self._perform_safety_cleanup()
+            if not skip_cleanup:
+                self._perform_safety_cleanup()
+            else:
+                logger.info("Safety cleanup skipped (requested).")
             
             # Automatically return to IDLE if we were the ones who started it
             # This is safe because RunManager.complete() only transitions if currently RUNNING
@@ -721,9 +725,13 @@ class ProtocolEngine:
         return {"success": True, "iterations": total_iterations}
 
 
-    def get_history(self) -> List[Dict[str, Any]]:
+    def get_history(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """Return a thread-safe copy of capture history."""
         with self._data_lock:
+            if limit and limit > 0:
+                # Efficient slicing before copy
+                subset = self._history[-limit:]
+                return copy.deepcopy(subset)
             logger.info(f"API: get_history called. Returning {len(self._history)} items.")
             return copy.deepcopy(self._history)
 

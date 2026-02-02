@@ -30,6 +30,7 @@ class RunInlineRequest(BaseModel):
     """Request to run an inline protocol (steps passed directly)."""
     steps: List[Dict[str, Any]] = Field(..., description="Protocol steps")
     name: str = Field(default="inline", description="Protocol name for logging")
+    skip_cleanup: bool = Field(default=False, description="Skip safety cleanup (keep outputs on)")
 
 
 class ProtocolStepInfo(BaseModel):
@@ -119,10 +120,10 @@ async def run_inline_protocol(request: RunInlineRequest, background_tasks: Backg
     """
     Start an inline protocol in the background.
     """
-    logger.info(f"Starting inline protocol: {request.name} ({len(request.steps)} steps)")
+    logger.info(f"Starting inline protocol: {request.name} ({len(request.steps)} steps, skip_cleanup={request.skip_cleanup})")
     
     try:
-        background_tasks.add_task(protocol_engine.run, request.steps)
+        background_tasks.add_task(protocol_engine.run, request.steps, request.skip_cleanup)
         
         return ProtocolResponse(
             success=True,
@@ -147,9 +148,14 @@ async def get_protocol_data():
 
 
 @router.get("/history")
-async def get_protocol_history():
-    """Get history of all captured data events."""
-    return protocol_engine.get_history()
+async def get_protocol_history(limit: Optional[int] = None):
+    """
+    Get history of all captured data events.
+    
+    Args:
+        limit: Return only the last N events.
+    """
+    return protocol_engine.get_history(limit=limit)
 
 
 @router.get("/status", response_model=ProtocolStatusResponse)

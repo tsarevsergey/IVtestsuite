@@ -1,0 +1,10 @@
+name: ui_switch_pixel
+description: Switch to specific pixel
+version: 1.0
+steps:
+  - action: relays/connect
+    params: 
+      mock: false
+  - action: relays/pixel
+    params:
+      pixel_id: $pixel_id

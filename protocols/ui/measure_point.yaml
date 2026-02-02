@@ -1,0 +1,12 @@
+name: ui_measure_point
+description: Take single point measurement
+version: 1.0
+steps:
+  - action: smu/connect
+    params:
+      channel: 2
+      mock: false
+  - action: smu/measure
+    params:
+      channel: 2
+    capture_as: single_point
