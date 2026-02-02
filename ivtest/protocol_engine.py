@@ -640,6 +640,20 @@ class ProtocolEngine:
         
         filepath = folder_path / filename
         
+        # File versioning: if file exists, append _2, _3, etc.
+        if filepath.exists():
+            base = filepath.stem  # filename without extension
+            ext = filepath.suffix  # .csv
+            counter = 2
+            while True:
+                new_name = f"{base}_{counter}{ext}"
+                new_path = folder_path / new_name
+                if not new_path.exists():
+                    filepath = new_path
+                    logger.info(f"File exists, using versioned name: {filepath}")
+                    break
+                counter += 1
+        
         # Write CSV
         keys = list(results[0].keys()) if results else []
         with open(filepath, "w", newline="", encoding="utf-8") as f:

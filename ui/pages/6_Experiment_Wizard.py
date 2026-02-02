@@ -1,5 +1,6 @@
 import streamlit as st
 import yaml
+import json
 import sys
 from pathlib import Path
 from typing import Dict, Any, List
@@ -12,6 +13,62 @@ st.set_page_config(page_title="Experiment Wizard", page_icon="🧙‍♂️", la
 
 st.title("🧙‍♂️ Experiment Wizard")
 st.markdown("Generate complex experiment protocols from high-level templates.")
+
+# --- Settings Persistence ---
+SETTINGS_FILE = Path(__file__).parent.parent.parent / "settings" / "experiment_wizard.json"
+
+def load_settings() -> Dict[str, Any]:
+    """Load experiment wizard settings from file."""
+    defaults = {
+        # IV Sweep Defaults
+        "start_v": -1.0,
+        "stop_v": 1.0,
+        "points": 50,
+        "delay": 0.01,
+        "sweep_type": "double",
+        "scale": "linear",
+        "direction": "forward",
+        "keep_output_on": True,
+        
+        # Sweep Channel Config (Primary)
+        "sweep_channel": 2,
+        "sm1_mode": "VOLT",
+        "sm1_compliance": 0.1,
+        "sm1_compliance_type": "CURR",
+        "nplc": 1.0,
+        
+        # Bias/Light Channel Config (Secondary)
+        "light_channel": 1,
+        "sm2_mode": "CURR",
+        "sm2_compliance": 9.0,
+        "sm2_compliance_type": "VOLT",
+        
+        # Light Source
+        "default_irradiance": 0.001,
+        "light_current": 0.001,
+        
+        # Sample defaults
+        "sample_name": "TEST",
+        "pixel_str": "1-6",
+        "wait_time": 0.5
+    }
+    if SETTINGS_FILE.exists():
+        try:
+            with open(SETTINGS_FILE) as f:
+                saved = json.load(f)
+                defaults.update(saved)
+        except:
+            pass
+    return defaults
+
+def save_settings(settings: Dict[str, Any]):
+    """Save experiment wizard settings to file."""
+    SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(SETTINGS_FILE, 'w') as f:
+        json.dump(settings, f, indent=2)
+
+# Load settings at startup
+settings = load_settings()
 
 # --- Template Definitions ---
 
@@ -359,25 +416,28 @@ elif selected_template in ["Dark -> Light (Batch)", "Light -> Dark (Batch)"]:
     st.markdown("#### Sample & Sequence")
     col1, col2 = st.columns(2)
     with col1:
-        params["sample_name"] = st.text_input("Sample Name", "TEST")
-        params["wait_time"] = st.number_input("Pixel Wait Time (s)", value=0.5, help="Stabilization time after switching relay")
+        params["sample_name"] = st.text_input("Sample Name", settings.get("sample_name", "TEST"))
+        params["wait_time"] = st.number_input("Pixel Wait Time (s)", value=settings.get("wait_time", 0.5), help="Stabilization time after switching relay")
     with col2:
-        params["pixel_str"] = st.text_input("Pixels (e.g., '1-6')", "1-6")
+        params["pixel_str"] = st.text_input("Pixels (e.g., '1-6')", settings.get("pixel_str", "1-6"))
         
     st.divider()
     st.markdown("#### IV Sweep Settings")
     col_s1, col_s2, col_s3 = st.columns(3)
     with col_s1:
-        params["start_v"] = st.number_input("IV Start (V)", value=0.0)
-        params["stop_v"] = st.number_input("IV Stop (V)", value=1.0)
-        params["keep_output_on"] = st.checkbox("Keep SMU output ON after measurement", value=False)
+        params["start_v"] = st.number_input("IV Start (V)", value=settings.get("start_v", -1.0))
+        params["stop_v"] = st.number_input("IV Stop (V)", value=settings.get("stop_v", 1.0))
+        params["keep_output_on"] = st.checkbox("Keep SMU output ON after measurement", value=settings.get("keep_output_on", True))
     with col_s2:
-        params["points"] = st.number_input("IV Points", value=21)
-        params["delay"] = st.number_input("IV Delay (s)", value=0.10)
+        params["points"] = st.number_input("IV Points", value=settings.get("points", 50))
+        params["delay"] = st.number_input("IV Delay (s)", value=settings.get("delay", 0.01))
     with col_s3:
-        params["sweep_type"] = st.selectbox("Type", ["single", "double"], index=1)
-        params["scale"] = st.selectbox("Scale", ["linear", "log"], index=0)
-        params["direction"] = st.selectbox("Direction", ["forward", "backward"], index=0)
+        sweep_types = ["single", "double"]
+        params["sweep_type"] = st.selectbox("Type", sweep_types, index=sweep_types.index(settings.get("sweep_type", "double")))
+        scales = ["linear", "log"]
+        params["scale"] = st.selectbox("Scale", scales, index=scales.index(settings.get("scale", "linear")))
+        directions = ["forward", "backward"]
+        params["direction"] = st.selectbox("Direction", directions, index=directions.index(settings.get("direction", "forward")))
         
     st.divider()
     st.markdown("#### Steady State Measurement")
@@ -398,26 +458,84 @@ elif selected_template in ["Dark -> Light (Batch)", "Light -> Dark (Batch)"]:
     col_c1, col_c2 = st.columns(2)
     with col_c1:
         st.write("**Sweep Channel Config (Primary)**")
-        params["sweep_channel"] = st.number_input("Sweep Channel #", value=2, min_value=1, max_value=2)
-        params["sm1_mode"] = st.selectbox("Source Mode (Sweep)", ["VOLT", "CURR"], index=1)
-        params["sm1_compliance"] = st.number_input("Compliance (Sweep)", value=0.1, format="%.4f")
-        params["sm1_compliance_type"] = st.selectbox("Compliance Type (Sweep)", ["CURR", "VOLT"], index=0 if params["sm1_mode"]=="VOLT" else 1)
-        params["nplc"] = st.number_input("NPLC (Speed)", value=1.0)
+        params["sweep_channel"] = st.number_input("Sweep Channel #", value=settings.get("sweep_channel", 2), min_value=1, max_value=2)
+        sm1_modes = ["VOLT", "CURR"]
+        params["sm1_mode"] = st.selectbox("Source Mode (Sweep)", sm1_modes, index=sm1_modes.index(settings.get("sm1_mode", "VOLT")))
+        params["sm1_compliance"] = st.number_input("Compliance (Sweep)", value=settings.get("sm1_compliance", 0.1), format="%.4f")
+        sm1_comp_types = ["CURR", "VOLT"]
+        default_comp_type = settings.get("sm1_compliance_type", "CURR")
+        params["sm1_compliance_type"] = st.selectbox("Compliance Type (Sweep)", sm1_comp_types, index=sm1_comp_types.index(default_comp_type))
+        params["nplc"] = st.number_input("NPLC (Speed)", value=settings.get("nplc", 1.0))
         
     with col_c2:
         st.write("**Bias/Light Channel Config (Secondary)**")
-        params["light_channel"] = st.number_input("Bias Channel #", value=1, min_value=1, max_value=2)
-        params["sm2_mode"] = st.selectbox("Source Mode (Bias)", ["VOLT", "CURR"], index=0)
-        params["sm2_compliance"] = st.number_input("Compliance (Bias)", value=0.05)
-        params["sm2_compliance_type"] = st.selectbox("Compliance Type (Bias)", ["VOLT", "CURR"], index=1 if params["sm2_mode"]=="VOLT" else 0)
+        params["light_channel"] = st.number_input("Bias Channel #", value=settings.get("light_channel", 1), min_value=1, max_value=2)
+        sm2_modes = ["VOLT", "CURR"]
+        params["sm2_mode"] = st.selectbox("Source Mode (Bias)", sm2_modes, index=sm2_modes.index(settings.get("sm2_mode", "CURR")))
+        params["sm2_compliance"] = st.number_input("Compliance (Bias)", value=settings.get("sm2_compliance", 9.0))
+        sm2_comp_types = ["VOLT", "CURR"]
+        default_sm2_comp = settings.get("sm2_compliance_type", "VOLT")
+        params["sm2_compliance_type"] = st.selectbox("Compliance Type (Bias)", sm2_comp_types, index=sm2_comp_types.index(default_sm2_comp))
 
     st.divider()
     st.markdown("#### Light Source Config (Bias Channel)")
+    
+    # Light source mode selector
+    light_mode = st.radio("Light Source Input Mode", ["Current (A)", "Irradiance (W/cm²)"], horizontal=True, key="light_mode")
+    
     col_l1, col_l2 = st.columns(2)
-    with col_l1:
-        params["light_current"] = st.number_input("Light Target Value (A/V)", value=0.001, format="%.6f", help="Target value for the bias SMU")
-    with col_l2:
-        st.empty()
+    
+    if light_mode == "Current (A)":
+        with col_l1:
+            params["light_current"] = st.number_input("LED Current (A)", value=0.001, format="%.6f", help="Direct LED current value")
+        with col_l2:
+            st.empty()
+    else:
+        # Irradiance mode - need calibration file
+        # First find calibration files
+        cal_files = list(Path(__file__).parent.parent.parent.glob("cal*.txt"))
+        cal_names = [f.name for f in cal_files]
+        
+        if cal_names:
+            with col_l2:
+                selected_cal = st.selectbox("Calibration File", cal_names, index=0)
+                cal_path = Path(__file__).parent.parent.parent / selected_cal
+            
+            # Load calibration to get range
+            try:
+                import numpy as np
+                data = np.loadtxt(cal_path, delimiter='\t', skiprows=1)
+                currents = data[:, 0]
+                irradiances = data[:, 2]  # Column 3: Irradiance
+                
+                min_irr = float(irradiances.min())
+                max_irr = float(irradiances.max())
+                
+                with col_l1:
+                    st.caption(f"📊 Valid range: {min_irr:.6f} - {max_irr:.6f} W/cm²")
+                    target_irradiance = st.number_input(
+                        "Target Irradiance (W/cm²)", 
+                        value=min(0.001, max_irr), 
+                        step=1e-6,
+                        format="%.6f", 
+                        help=f"Any value within calibration range (interpolated)"
+                    )
+                    
+                    # Clamp to valid range
+                    target_irradiance = max(min_irr, min(target_irradiance, max_irr))
+                
+                # Interpolate: irradiance → current (works for any value in range)
+                converted_current = float(np.interp(target_irradiance, irradiances, currents))
+                params["light_current"] = converted_current
+                
+                st.success(f"Converted: {target_irradiance:.6f} W/cm² → {converted_current:.6f} A")
+            except Exception as e:
+                st.error(f"Calibration error: {e}")
+                params["light_current"] = 0.001
+        else:
+            with col_l1:
+                st.warning("No calibration files found (cal*.txt)")
+            params["light_current"] = 0.001
 
 st.divider()
 
@@ -425,6 +543,31 @@ st.divider()
 if st.button("Generate Protocol"):
     generator = TEMPLATES[selected_template]
     protocol_yaml = generator(params)
+    
+    # Save current settings for persistence
+    save_settings({
+        "start_v": params.get("start_v", -1.0),
+        "stop_v": params.get("stop_v", 1.0),
+        "points": params.get("points", 50),
+        "delay": params.get("delay", 0.01),
+        "sweep_type": params.get("sweep_type", "double"),
+        "scale": params.get("scale", "linear"),
+        "direction": params.get("direction", "forward"),
+        "keep_output_on": params.get("keep_output_on", True),
+        "sweep_channel": params.get("sweep_channel", 2),
+        "sm1_mode": params.get("sm1_mode", "VOLT"),
+        "sm1_compliance": params.get("sm1_compliance", 0.1),
+        "sm1_compliance_type": params.get("sm1_compliance_type", "CURR"),
+        "nplc": params.get("nplc", 1.0),
+        "light_channel": params.get("light_channel", 1),
+        "sm2_mode": params.get("sm2_mode", "CURR"),
+        "sm2_compliance": params.get("sm2_compliance", 9.0),
+        "sm2_compliance_type": params.get("sm2_compliance_type", "VOLT"),
+        "light_current": params.get("light_current", 0.001),
+        "sample_name": params.get("sample_name", "TEST"),
+        "pixel_str": params.get("pixel_str", "1-6"),
+        "wait_time": params.get("wait_time", 0.5)
+    })
     
     st.session_state.generated_yaml = yaml.dump(protocol_yaml, sort_keys=False)
     st.session_state.generated_name = protocol_yaml["name"].lower().replace(' ', '_').replace('-', '_')

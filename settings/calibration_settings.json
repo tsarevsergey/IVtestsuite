@@ -1,0 +1,19 @@
+{
+  "led_wavelengths": [
+    461,
+    562,
+    620
+  ],
+  "default_calibration_name": "calBLUE",
+  "pd_channel": 2,
+  "led_channel": 1,
+  "led_start": 0.001,
+  "led_stop": 0.1,
+  "num_points": 20,
+  "delay": 1.0,
+  "nplc": 4.0,
+  "pd_bias": 0.0,
+  "led_compliance": 9.0,
+  "pd_compliance": 0.01,
+  "pd_area_cm2": 1.0
+}

@@ -251,6 +251,68 @@ with st.expander("Run Parameters (Overrides)", expanded=True):
                 step["params"]["sequence"] = final_pixels
         except:
             st.error("Invalid pixel format")
+    
+    st.divider()
+    # 3. Light Source Override
+    st.markdown("### 3. Light Source Override")
+    set_steps = find_all_steps(new_steps, "smu/set")
+    if set_steps:
+        # Find current value from first set step
+        current_value = set_steps[0]["params"].get("value", 0.001)
+        
+        light_override_mode = st.radio("Light Override Mode", ["Current (A)", "Irradiance (W/cm²)"], horizontal=True, key="light_override_mode")
+        
+        col_lo1, col_lo2 = st.columns(2)
+        
+        if light_override_mode == "Current (A)":
+            with col_lo1:
+                new_current = st.number_input("New LED Current (A)", value=float(current_value), format="%.6f")
+            for step in set_steps:
+                step["params"]["value"] = new_current
+        else:
+            # Irradiance mode - find calibration files first
+            from pathlib import Path
+            cal_files = list(Path(__file__).parent.parent.parent.glob("cal*.txt"))
+            cal_names = [f.name for f in cal_files]
+            
+            if cal_names:
+                with col_lo2:
+                    selected_cal = st.selectbox("Calibration File", cal_names, index=0, key="runner_cal")
+                    cal_path = Path(__file__).parent.parent.parent / selected_cal
+                
+                try:
+                    import numpy as np
+                    data = np.loadtxt(cal_path, delimiter='\t', skiprows=1)
+                    currents = data[:, 0]
+                    irradiances = data[:, 2]  # Column 3: Irradiance
+                    
+                    min_irr = float(irradiances.min())
+                    max_irr = float(irradiances.max())
+                    
+                    with col_lo1:
+                        st.caption(f"📊 Valid range: {min_irr:.6f} - {max_irr:.6f} W/cm²")
+                        target_irr = st.number_input(
+                            "Target Irradiance (W/cm²)", 
+                            value=min(0.001, max_irr), 
+                            step=1e-6,
+                            format="%.6f",
+                            help=f"Any value within calibration range (interpolated)"
+                        )
+                        
+                        # Clamp to valid range
+                        target_irr = max(min_irr, min(target_irr, max_irr))
+                    
+                    # Interpolate: works for any value in range
+                    converted = float(np.interp(target_irr, irradiances, currents))
+                    st.success(f"→ {converted:.6f} A")
+                    
+                    for step in set_steps:
+                        step["params"]["value"] = converted
+                except Exception as e:
+                    st.error(f"Calibration error: {e}")
+            else:
+                with col_lo1:
+                    st.warning("No calibration files found")
             
 # --- Execution & Plotting ---
 st.divider()

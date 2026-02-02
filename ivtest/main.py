@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .logging_config import setup_logging, get_logger
 from .run_manager import run_manager
-from .routers import status, smu, relays, protocol, data
+from .routers import status, smu, relays, protocol, data, calibration
 
 # Initialize logging
 log_dir = os.path.join(os.path.dirname(__file__), "..", "logs")
@@ -61,6 +61,7 @@ app.include_router(smu.router)
 app.include_router(relays.router)
 app.include_router(protocol.router)
 app.include_router(data.router)
+app.include_router(calibration.router)
 
 
 @app.get("/")

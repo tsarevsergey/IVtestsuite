@@ -1,0 +1,23 @@
+{
+  "start_v": -1.0,
+  "stop_v": 1.0,
+  "points": 50,
+  "delay": 0.01,
+  "sweep_type": "double",
+  "scale": "linear",
+  "direction": "forward",
+  "keep_output_on": true,
+  "sweep_channel": 2,
+  "sm1_mode": "VOLT",
+  "sm1_compliance": 0.1,
+  "sm1_compliance_type": "CURR",
+  "nplc": 1.0,
+  "light_channel": 1,
+  "sm2_mode": "CURR",
+  "sm2_compliance": 9.0,
+  "sm2_compliance_type": "VOLT",
+  "light_current": 0.0022363155021357254,
+  "sample_name": "TEST",
+  "pixel_str": "1,2,3",
+  "wait_time": 0.5
+}
