@@ -28,19 +28,57 @@ if "monitor_configured" not in st.session_state: st.session_state.monitor_config
 if "conn_smu1" not in st.session_state: st.session_state.conn_smu1 = False
 if "conn_smu2" not in st.session_state: st.session_state.conn_smu2 = False
 if "conn_relays" not in st.session_state: st.session_state.conn_relays = False
+if "led_configured" not in st.session_state: st.session_state.led_configured = False  # LED config applied
+if "last_error" not in st.session_state: st.session_state.last_error = None  # Last error message
 
 # ----------------------------
 # HELPERS
 # ----------------------------
-def api_call(method, endpoint, json=None, params=None, timeout=5):
-    """Direct backend call with short timeout."""
+def api_call(method, endpoint, json=None, params=None, timeout=5, show_error=False):
+    """Direct backend call with short timeout. Returns response or None."""
     try:
         url = f"{BACKEND_URL}{endpoint}"
         if method.upper() == "POST":
-            return requests.post(url, json=json, timeout=timeout)
-        return requests.get(url, params=params, timeout=timeout)
+            resp = requests.post(url, json=json, timeout=timeout)
+        else:
+            resp = requests.get(url, params=params, timeout=timeout)
+        
+        # Check for API-level errors
+        if resp.status_code >= 400:
+            error_msg = f"API Error {resp.status_code}: {endpoint}"
+            try:
+                error_msg = resp.json().get("detail", error_msg)
+            except:
+                pass
+            st.session_state.last_error = error_msg
+            if show_error:
+                st.error(error_msg)
+            return resp
+        
+        # Check for success=False in response body
+        try:
+            data = resp.json()
+            if isinstance(data, dict) and data.get("success") == False:
+                error_msg = data.get("message", f"Operation failed: {endpoint}")
+                st.session_state.last_error = error_msg
+                if show_error:
+                    st.error(error_msg)
+        except:
+            pass
+        
+        return resp
+    except requests.exceptions.Timeout:
+        error_msg = f"Timeout connecting to {endpoint}"
+        st.session_state.last_error = error_msg
+        if show_error:
+            st.error(error_msg)
+        print(f"API Timeout: {error_msg}")
+        return None
     except Exception as e:
-        # Keep UI responsive even if backend down
+        error_msg = f"Connection error: {e}"
+        st.session_state.last_error = error_msg
+        if show_error:
+            st.error(error_msg)
         print(f"API Error: {e}")
         return None
 
@@ -342,11 +380,29 @@ with cc3:
     led_cls = "led-green on" if st.session_state.conn_relays else "led-red"
     st.markdown(f'<div style="display:flex; align-items:center; gap:8px; margin-bottom:.35rem;"><span class="led-indicator {led_cls}"></span><span style="font-size:.9rem; font-weight:700;">RELAYS</span></div>', unsafe_allow_html=True)
     if st.button("Reconnect" if st.session_state.conn_relays else "Connect", key="connR", use_container_width=True):
-        api_call("POST", "/relays/connect", json={"mock": False})
-        st.session_state.conn_relays = True
+        resp = api_call("POST", "/relays/connect", json={"mock": False}, timeout=5)
+        if resp:
+            try:
+                data = resp.json()
+                if data.get("success", False):
+                    st.session_state.conn_relays = True
+                    st.toast("Relays connected")
+                else:
+                    st.error(f"⚠️ Relay connection failed: {data.get('message', 'Unknown error')}. Close other software using COM38/COM39.")
+                    st.session_state.conn_relays = False
+            except:
+                st.session_state.conn_relays = True
+        else:
+            st.error("⚠️ Could not connect to relays. Check if ports COM38/COM39 are available.")
+            st.session_state.conn_relays = False
         st.rerun()
 
 st.markdown("</div>", unsafe_allow_html=True)
+
+# Show last error if present
+if st.session_state.last_error:
+    st.error(f"⚠️ {st.session_state.last_error}")
+    st.session_state.last_error = None  # Clear after showing
 
 # ----------------------------
 # MAIN GRID
@@ -452,7 +508,12 @@ with col_left:
             st.warning("No calibration files (cal*.txt)")
             led_cur = 0.010
 
-    if st.button("SET LED CONFIGURATION", key="set_led_cfg", use_container_width=True):
+    # SET LED CONFIGURATION button - disabled while LED is ON
+    set_btn_disabled = st.session_state.led_state
+    if set_btn_disabled:
+        st.warning("⚠️ Turn LED OFF before changing configuration")
+    
+    if st.button("SET LED CONFIGURATION", key="set_led_cfg", use_container_width=True, disabled=set_btn_disabled):
         # Find relay index from selected wavelength label (now 1-indexed)
         led_relay_idx = wavelength_options.index(led_relay_label) + 1 if led_relay_label in wavelength_options else 1
         st.session_state.selected_led = led_relay_idx - 1  # Session state is 0-indexed for selectbox
@@ -460,18 +521,32 @@ with col_left:
         # Relay number = led_relay_idx (1=None, 2=Blue, 3=Red, 4=Green)
         # Send led_relay_idx directly as the relay to turn on
         # Relay is slow (mechanical, needs ~1s), use longer timeout
-        api_call("POST", "/relays/led", json={"channel_id": led_relay_idx - 1}, timeout=3)  # API still 0-indexed
-        st.toast(f"LED relay {led_relay_idx} switched to {led_relay_label}")
+        resp = api_call("POST", "/relays/led", json={"channel_id": led_relay_idx - 1}, timeout=3, show_error=True)
+        if resp:
+            try:
+                data = resp.json()
+                if data.get("success", True):
+                    st.toast(f"LED relay {led_relay_idx} switched to {led_relay_label}")
+                else:
+                    st.error(f"⚠️ Relay switch failed: {data.get('message', 'Unknown error')}")
+            except:
+                pass
         
         # Configure SMU for LED driving
         api_call("POST", "/smu/configure", json={"channel": led_smu, "compliance": led_lim, "compliance_type": "VOLT"})
         api_call("POST", "/smu/source-mode", json={"channel": led_smu, "mode": "CURR"})
         api_call("POST", "/smu/set", json={"channel": led_smu, "value": led_cur})
+        st.session_state.led_configured = True
         st.toast(f"LED configured: {led_cur:.4f} A on SMU {led_smu}")
 
+    # ON/OFF buttons - disabled until LED configured
+    on_off_disabled = not st.session_state.led_configured
+    if on_off_disabled:
+        st.caption("💡 Apply LED configuration first")
+    
     b1, b2 = st.columns(2)
     with b1:
-        if st.button("💡 ON", key="led_on", use_container_width=True):
+        if st.button("💡 ON", key="led_on", use_container_width=True, disabled=on_off_disabled):
             api_call("POST", "/smu/output", json={"channel": led_smu, "enabled": True})
             st.session_state.led_state = True
             st.rerun()
@@ -553,29 +628,55 @@ with col_right:
     with m3:
         mon_nplc = st.number_input("NPLC", value=1.0, step=0.1, key="mon_nplc_val")
     with m4:
-        mon_rate = st.number_input("Rate (s)", value=1.0, step=0.1, min_value=0.1, key="mon_rate_val")
+        # Rate now in Hz (backend does the fast polling)
+        mon_rate_hz = st.number_input("Rate (Hz)", value=10.0, step=1.0, min_value=1.0, max_value=50.0, key="mon_rate_hz")
 
     a1, a2 = st.columns(2)
     with a1:
         if st.button("APPLY SETTINGS", key="apply_mon", use_container_width=True):
-            api_call("POST", "/smu/configure", json={"channel": mon_chan, "nplc": mon_nplc, "compliance": 0.1})
-            api_call("POST", "/smu/set", json={"channel": mon_chan, "value": mon_v})
-            # NOTE: Output NOT enabled here - user must click START MONITORING
-            st.session_state.monitor_configured = True
-            st.toast("Monitor Configured (Ready)")
+            # Use new backend monitor API
+            resp = api_call("POST", "/monitor/configure", json={
+                "channel": mon_chan, 
+                "bias_voltage": mon_v,
+                "nplc": mon_nplc, 
+                "compliance": 0.1,
+                "rate_hz": mon_rate_hz
+            }, show_error=True)
+            if resp and resp.status_code < 400:
+                data = resp.json()
+                if data.get("success"):
+                    st.session_state.monitor_configured = True
+                    st.toast(f"Monitor Configured ({mon_rate_hz}Hz)")
+                else:
+                    st.error(f"⚠️ {data.get('message', 'Configure failed')}")
+            else:
+                st.error("⚠️ Failed to configure monitor. Check SMU connection.")
 
     with a2:
+        # START MONITORING disabled until APPLY SETTINGS pressed
+        start_disabled = not st.session_state.monitor_configured and not st.session_state.monitoring
         btn_label = "■ STOP MONITORING" if st.session_state.monitoring else "▶ START MONITORING"
-        # make STOP look "danger" via CSS aria-label selector
-        if st.button(btn_label, key="toggle_mon", use_container_width=True):
-            st.session_state.monitoring = not st.session_state.monitoring
-            if not st.session_state.monitoring:
-                api_call("POST", "/smu/output", json={"channel": mon_chan, "enabled": False})
-                st.session_state.monitor_configured = False
-                st.toast("Monitoring stopped & source OFF")
+        
+        if start_disabled:
+            st.caption("Apply settings first")
+        
+        if st.button(btn_label, key="toggle_mon", use_container_width=True, disabled=start_disabled):
+            if st.session_state.monitoring:
+                # Stop
+                resp = api_call("POST", "/monitor/stop")
+                if resp:
+                    st.session_state.monitoring = False
+                    st.session_state.monitor_configured = False
+                    st.session_state.live_traces = []
+                    st.toast("Monitoring stopped")
             else:
-                api_call("POST", "/smu/output", json={"channel": mon_chan, "enabled": True})
-                st.toast("Monitoring started")
+                # Start
+                resp = api_call("POST", "/monitor/start")
+                if resp and resp.json().get("success"):
+                    st.session_state.monitoring = True
+                    st.toast("Monitoring started (backend collecting)")
+                else:
+                    st.error("⚠️ Failed to start monitoring")
             st.rerun()
 
     # Current readout block (HUD-style)
@@ -684,22 +785,20 @@ with col_right:
     )
 
 # ----------------------------
-# MEASUREMENT LOOP
+# MEASUREMENT LOOP - Now polls backend buffer
 # ----------------------------
 if st.session_state.monitoring:
-    # Auto-configure if not yet configured (fallback safety)
-    if not st.session_state.monitor_configured:
-        api_call("POST", "/smu/configure", json={"channel": mon_chan, "nplc": 1.0, "compliance": 0.1})
-        api_call("POST", "/smu/set", json={"channel": mon_chan, "value": 0.0})
-        api_call("POST", "/smu/output", json={"channel": mon_chan, "enabled": True})
-        st.session_state.monitor_configured = True
-    
-    resp = api_call("GET", "/smu/measure", params={"channel": mon_chan})
+    # Fetch data from backend buffer (backend collects at configured rate)
+    resp = api_call("GET", "/monitor/data", params={"last_n": 100})
     if resp and resp.status_code == 200:
-        val = resp.json().get("current", 0.0)
-        st.session_state.live_traces.append({"time": time.time(), "current": val})
-        if len(st.session_state.live_traces) > 60:
-            st.session_state.live_traces.pop(0)
+        data = resp.json()
+        st.session_state.live_traces = data.get("data", [])
+        
+        # Check if backend stopped unexpectedly
+        if not data.get("running", False):
+            st.session_state.monitoring = False
+            st.warning("⚠️ Backend monitoring stopped")
     
-    time.sleep(mon_rate)
+    # Auto-refresh UI every 2 seconds (backend keeps collecting at full rate)
+    time.sleep(2)
     st.rerun()

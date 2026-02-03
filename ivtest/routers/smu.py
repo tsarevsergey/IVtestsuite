@@ -206,7 +206,12 @@ async def output_control(request: OutputRequest):
 @router.get("/measure")
 async def measure(channel: Optional[int] = None):
     """Perform single measurement."""
-    return smu_client.measure(channel=channel)
+    import time
+    _t_start = time.perf_counter()
+    result = smu_client.measure(channel=channel)
+    _t_elapsed = (time.perf_counter() - _t_start) * 1000
+    logger.info(f"[TIMING] /smu/measure: {_t_elapsed:.1f}ms")
+    return result
 
 
 @router.post("/sweep", response_model=SweepResponse)
