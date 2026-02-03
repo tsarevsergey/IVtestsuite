@@ -570,10 +570,11 @@
                 version: 1.2,
                 steps: [
                     { action: 'smu/connect', params: { channel: 1, mock: false } },
-                    { action: 'relays/connect', params: { mock: true } },
+                    { action: 'relays/connect', params: { mock: false } },
                     { action: 'smu/configure', params: { compliance: p.compliance, nplc: p.nplc } },
                     { action: 'smu/source-mode', params: { mode: 'VOLT' } },
                     { action: 'relays/all-off' },
+                    { action: 'wait', params: { seconds: 1.0 } },
                     {
                         action: 'control/loop',
                         params: { variable: 'pixel', sequence: pixels },
@@ -680,8 +681,10 @@
             const steps = [
                 { action: 'smu/connect', params: { channel: 1, mock: false } },
                 { action: 'smu/connect', params: { channel: 2, mock: false } },
-                { action: 'relays/connect', params: { mock: true } },
-                { action: 'relays/all-off' }
+                { action: 'relays/connect', params: { mock: false } },
+                { action: 'wait', params: { seconds: 1.0 } },
+                { action: 'relays/all-off' },
+                { action: 'wait', params: { seconds: 1.0 } }
             ];
 
             if (darkFirst) {
