@@ -1,0 +1,104 @@
+name: Dark-Light_TEST
+description: Batch sweep on pixels 1-6. dark_first.
+version: 2
+steps:
+- action: smu/connect
+  params:
+    channel: 1
+    mock: false
+- action: smu/connect
+  params:
+    channel: 2
+    mock: false
+- action: relays/connect
+  params:
+    mock: true
+- action: relays/all-off
+- action: smu/output
+  params:
+    channel: 1
+    enabled: false
+- action: control/loop
+  params:
+    variable: pixel
+    sequence:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+  steps:
+  - action: relays/pixel
+    params:
+      pixel_id: $pixel
+  - action: wait
+    params:
+      seconds: 0.5
+  - action: smu/sweep
+    params:
+      channel: 2
+      start: 0
+      stop: 1
+      points: 11
+      delay: 0.05
+      sweep_type: double
+      direction: forward
+      keep_output_on: false
+    capture_as: dark_iv_data
+  - action: data/save
+    params:
+      data: $dark_iv_data
+      filename: TEST_$pixelDARK
+- action: smu/set
+  params:
+    channel: 1
+    value: 0.00266326
+- action: smu/output
+  params:
+    channel: 1
+    enabled: true
+- action: wait
+  params:
+    seconds: 2
+- action: control/loop
+  params:
+    variable: pixel
+    sequence:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+  steps:
+  - action: relays/pixel
+    params:
+      pixel_id: $pixel
+  - action: wait
+    params:
+      seconds: 0.5
+  - action: smu/sweep
+    params:
+      channel: 2
+      start: 0
+      stop: 1
+      points: 11
+      delay: 0.05
+      sweep_type: double
+      direction: forward
+      keep_output_on: true
+    capture_as: light_iv_data
+  - action: data/save
+    params:
+      data: $light_iv_data
+      filename: TEST_$pixelLIGHT
+- action: smu/output
+  params:
+    channel: 2
+    enabled: false
+- action: smu/output
+  params:
+    channel: 1
+    enabled: false
+- action: relays/all-off

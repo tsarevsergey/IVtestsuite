@@ -284,21 +284,29 @@ class ProtocolEngine:
                         continue
                 
                 # 2. String interpolation check
-                if "{$" in value:
+                if "$" in value:
                     new_val = value
                     import re
-                    # Find all {$var_name} patterns
-                    matches = re.finditer(r'\{\$([a-zA-Z0-9_]+)\}', value)
-                    valid_interpolation = True
-                    for match in matches:
+                    
+                    # 2a. Handle legacy {$var_name} patterns
+                    matches_braced = re.finditer(r'\{\$([a-zA-Z0-9_]+)\}', value)
+                    for match in matches_braced:
                         var_name = match.group(1)
                         if var_name in self._captured:
-                            # Replace occurrences
                             new_val = new_val.replace(match.group(0), str(self._captured[var_name]))
-                        else:
-                            # Variable not found, abort interpolation for this string
-                            # valid_interpolation = False 
-                            pass # Keep original token if not found? Or fail? Let's keep original
+                            
+                    # 2b. Handle unbraced $var_name patterns (greedy match)
+                    # We match $ followed by word characters, but avoid overlapping with already replaced braces
+                    # This regex finds $var but not {$var} because { usually precedes $ in the latter
+                    matches_unbraced = re.finditer(r'(?<!\{)\$([a-zA-Z0-9_]+)', new_val)
+                    for match in matches_unbraced:
+                        var_name = match.group(1)
+                        if var_name in self._captured:
+                            # Use regex sub with word boundary to avoid partial replacement of longer variable names
+                            # or tokens that look like variables but aren't
+                            pattern = re.escape(match.group(0)) + r'(\b|[^a-zA-Z0-9_]|$)'
+                            new_val = re.sub(pattern, str(self._captured[var_name]) + r'\1', new_val, count=1)
+
                     resolved[key] = new_val
                 else:
                      resolved[key] = value

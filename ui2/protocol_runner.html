@@ -10,547 +10,778 @@
     <script src="js/api.js"></script>
     <script src="js/utils.js"></script>
     <style>
-        .protocol-list {
-            max-height: 300px;
-            overflow-y: auto;
+        .runner-container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 1.5rem;
+            max-width: 1600px;
+            margin: 0 auto;
         }
 
-        .protocol-item {
-            padding: 0.6rem 0.75rem;
-            border: 1px solid var(--border-color);
+        .protocol-source-toggle {
+            display: flex;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .source-btn {
+            flex: 1;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            padding: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
             border-radius: 6px;
-            margin-bottom: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .source-btn.active {
+            background: var(--accent-cyan);
+            color: #000;
+        }
+
+        .protocol-list-mini {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            border-radius: 8px;
+        }
+
+        .proto-item {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: all 0.2s;
         }
 
-        .protocol-item:hover {
-            border-color: var(--accent-cyan);
+        .proto-item:last-child {
+            border-bottom: none;
+        }
+
+        .proto-item:hover {
             background: rgba(0, 212, 255, 0.05);
         }
 
-        .protocol-item.selected {
-            border-color: var(--accent-cyan);
+        .proto-item.active {
             background: rgba(0, 212, 255, 0.1);
+            border-left: 4px solid var(--accent-cyan);
         }
 
-        .protocol-item .name {
+        .proto-item .name {
+            font-size: 0.85rem;
             font-weight: 600;
+            color: var(--text-primary);
+            display: block;
+        }
+
+        .proto-item .id {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        /* Metric Cards */
+        .metrics-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .metric-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-left: 5px solid var(--accent-green);
+            padding: 1rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .metric-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+        }
+
+        .metric-value {
+            font-size: 1.4rem;
+            font-weight: 700;
             color: var(--text-primary);
         }
 
-        .protocol-item .folder {
-            font-size: 0.75rem;
-            color: var(--text-muted);
+        /* Overrides Accordion */
+        .override-section {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
         }
 
-        .yaml-preview {
-            max-height: 250px;
-        }
-
-        .run-progress {
-            margin: 1rem 0;
-        }
-
-        .step-list {
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .step-item {
-            padding: 0.4rem 0.6rem;
-            background: var(--bg-secondary);
-            border-radius: 4px;
-            margin-bottom: 0.25rem;
-            font-size: 0.8rem;
+        .section-header {
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
             display: flex;
             align-items: center;
             gap: 0.5rem;
-        }
-
-        .step-item .icon {
-            font-size: 0.9rem;
-        }
-
-        .step-item.done .icon {
-            color: var(--accent-green);
-        }
-
-        .step-item.running .icon {
             color: var(--accent-cyan);
-            animation: pulse 1s infinite;
         }
 
-        .step-item.pending .icon {
-            color: var(--text-muted);
+        /* Execution Styles */
+        .btn-run {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            font-weight: 800;
+            border: none;
+            height: 50px;
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+        }
+
+        .btn-run:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            color: white;
+            font-weight: 800;
+            border: none;
+            height: 50px;
+            font-size: 1.1rem;
+        }
+
+        .btn-stop:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        .chart-box {
+            background: var(--bg-panel);
+            padding: 1rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .chart-controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+            align-items: center;
+            font-size: 0.8rem;
+        }
+
+        .radio-group {
+            display: flex;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            padding: 2px;
+        }
+
+        .radio-btn {
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .radio-btn.active {
+            background: var(--bg-primary);
+            color: var(--accent-cyan);
+            font-weight: bold;
         }
     </style>
 </head>
 
 <body>
     <div class="container">
-        <!-- Header -->
         <div class="page-header">
-            <h1 class="page-title">▶️ Protocol Runner</h1>
-            <div class="status-bar">
-                <div class="status-item">
-                    <div class="led" id="backendLed"></div>
-                    <span>Backend</span>
-                </div>
-                <div class="status-item">
-                    <div class="led" id="runLed"></div>
-                    <span id="runStatus">Idle</span>
-                </div>
-            </div>
+            <h1 class="page-title">📈 Protocol Runner</h1>
         </div>
 
-        <div class="grid-sidebar">
-            <!-- Left: Protocol Selection -->
-            <div>
-                <!-- Protocol List -->
+        <div class="runner-container">
+            <!-- Left: Sidebar -->
+            <div class="sidebar">
                 <div class="panel">
-                    <div class="panel-title">📁 Protocol Library</div>
-                    <button class="btn btn-outline btn-sm mb-2" onclick="loadProtocols()">🔄 Refresh</button>
-                    <div class="protocol-list" id="protocolList">
-                        <div class="text-center text-muted">Loading...</div>
+                    <div class="panel-title">Protocol Selection</div>
+                    <div class="protocol-source-toggle">
+                        <button class="source-btn active" onclick="setSource('user')" id="srcUser">User
+                            Protocols</button>
+                        <button class="source-btn" onclick="setSource('all')" id="srcAll">All Protocols</button>
+                    </div>
+
+                    <button class="btn btn-outline btn-sm btn-full mb-2" onclick="loadProtocolsList()">🔄 Refresh
+                        List</button>
+
+                    <div class="protocol-list-mini" id="protocolList">
+                        <div class="text-center p-3 text-muted">Loading protocols...</div>
                     </div>
                 </div>
 
-                <!-- Override Controls -->
-                <div class="panel">
-                    <div class="panel-title">🛠️ Run Parameters</div>
+                <div class="panel mt-2">
+                    <div class="panel-title">Current Protocol</div>
+                    <pre class="code-block" style="font-size: 0.7rem; max-height: 200px;"
+                        id="yamlPreview">Select a protocol</pre>
+                </div>
+            </div>
 
-                    <!-- Mock Mode -->
-                    <div class="form-group">
+            <!-- Right: Main Area -->
+            <div class="main-content">
+                <!-- 1. Metrics -->
+                <div class="metrics-bar">
+                    <div class="metric-card" style="border-left-color: var(--accent-cyan);">
+                        <div class="metric-label">System State</div>
+                        <div class="metric-value" id="valState">IDLE</div>
+                    </div>
+                    <div class="metric-card" style="border-left-color: var(--accent-yellow);">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value" id="valDuration">0.0s</div>
+                    </div>
+                    <div class="metric-card" style="border-left-color: var(--accent-cyan);">
+                        <div class="metric-label">Data Points</div>
+                        <div class="metric-value" id="valPoints">0</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Progress</div>
+                        <div class="metric-value" id="valProgress">0%</div>
+                    </div>
+                </div>
+
+                <!-- 2. Parameter Overrides -->
+                <div class="override-section">
+                    <div class="section-header">🛠️ Setup & Parameters (Overrides)</div>
+
+                    <!-- 🛡️ Global Overrides -->
+                    <div class="form-group mb-2">
                         <label class="checkbox-label">
-                            <input type="checkbox" id="mockMode" checked>
-                            Mock Mode (no hardware)
+                            <input type="checkbox" id="mockOverride" checked>
+                            <strong>🛡️ Global Mock Mode</strong> (Force mock=true for all HW)
                         </label>
                     </div>
 
-                    <div class="divider"></div>
+                    <hr class="divider mb-2">
 
-                    <!-- Filename Override -->
+                    <!-- 📦 Filename & Folder Replacement -->
+                    <div class="group-title">1. Filename & Folder Replacement</div>
+                    <div class="form-row mb-2">
+                        <div class="form-group mb-0">
+                            <label>Mode</label>
+                            <div class="radio-group" style="width: fit-content;">
+                                <div class="radio-btn active" id="modeFNR" onclick="setFnameMode('fnr')">Find & Replace
+                                </div>
+                                <div class="radio-btn" id="modeLiteral" onclick="setFnameMode('literal')">Literal
+                                    (Global)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="fnrFields" class="form-row">
+                        <div class="form-group">
+                            <label>Find</label>
+                            <input type="text" id="fnameFind" value="TEST">
+                        </div>
+                        <div class="form-group">
+                            <label>Replace with</label>
+                            <input type="text" id="fnameReplace" value="AA1">
+                        </div>
+                    </div>
+
+                    <div id="literalFields" class="form-row hidden">
+                        <div class="form-group">
+                            <label>New Filename (Global)</label>
+                            <input type="text" id="fnameGlobal" value="DATA">
+                        </div>
+                    </div>
+
+                    <div class="form-row mt-2">
+                        <div class="form-group">
+                            <label>Data Folder (Global)</label>
+                            <input type="text" id="dataFolder" value="./data">
+                        </div>
+                    </div>
+
+                    <hr class="divider mt-2 mb-2">
+
+                    <!-- 🌀 Pixels -->
+                    <div class="group-title">2. Pixels (Global Override)</div>
+                    <div class="form-group">
+                        <label>Pixel Sequence (e.g. 1-6 or 1,2,8)</label>
+                        <input type="text" id="pixelOverride" value="1-6">
+                    </div>
+
+                    <hr class="divider mt-2 mb-2">
+
+                    <!-- 💡 Light Source -->
+                    <div class="group-title">3. Light Source Override</div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Sample Name</label>
-                            <input type="text" id="sampleName" value="TEST" placeholder="Sample name">
+                            <label>Mode</label>
+                            <select id="lightMode" onchange="toggleLightMode()">
+                                <option value="current">Current (A)</option>
+                                <option value="irradiance">Irradiance (W/cm²)</option>
+                            </select>
                         </div>
-                        <div class="form-group">
-                            <label>Data Folder</label>
-                            <input type="text" id="dataFolder" value="./data" placeholder="Folder path">
-                        </div>
                     </div>
 
-                    <!-- Pixel Override -->
-                    <div class="form-group">
-                        <label>Pixels (e.g. 1,2,3 or 1-8)</label>
-                        <input type="text" id="pixelSequence" value="1,2,3,4,5,6,7,8" placeholder="1-8">
-                    </div>
-
-                    <div class="divider"></div>
-
-                    <!-- Light Source Override -->
-                    <div class="form-group">
-                        <label>Light Source Mode</label>
-                        <select id="lightMode" onchange="toggleLightMode()">
-                            <option value="current">Current (A)</option>
-                            <option value="irradiance">Irradiance (W/cm²)</option>
-                        </select>
-                    </div>
-                    <div id="currentModeInputs">
+                    <div id="lightCurrentGroup">
                         <div class="form-group">
                             <label>LED Current (A)</label>
-                            <input type="number" id="ledCurrent" value="0.001" step="0.0001">
+                            <input type="number" id="lightCurrent" value="0.001" step="0.0001">
                         </div>
                     </div>
-                    <div id="irradianceModeInputs" class="hidden">
+
+                    <div id="lightIrradianceGroup" class="hidden">
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Calibration File</label>
-                                <select id="calibrationFile"></select>
+                                <select id="calFile" onchange="loadCalData()"></select>
                             </div>
                             <div class="form-group">
-                                <label>Target Irradiance</label>
-                                <input type="number" id="targetIrradiance" value="0.1" step="0.01">
+                                <label>Target (W/cm²)</label>
+                                <input type="number" id="targetIrr" value="0.001" step="0.0001"
+                                    oninput="calculateCurrent()">
                             </div>
                         </div>
-                        <div class="alert alert-info" id="irradianceResult"></div>
+                        <div id="calResult" class="text-success text-small font-bold"></div>
                     </div>
                 </div>
 
-                <!-- Run Controls -->
-                <div class="panel">
-                    <div class="panel-title">▶️ Execution</div>
-                    <div class="btn-row">
-                        <button class="btn btn-success" id="btnRun" onclick="runProtocol()" disabled>
-                            ▶ RUN PROTOCOL
-                        </button>
-                        <button class="btn btn-danger" id="btnStop" onclick="stopProtocol()" disabled>
-                            ■ STOP
-                        </button>
-                    </div>
-
-                    <!-- Progress -->
-                    <div class="run-progress hidden" id="progressSection">
-                        <div class="progress-bar">
-                            <div class="fill" id="progressFill" style="width: 0%"></div>
-                        </div>
-                        <div class="text-small text-muted mt-1" id="progressText">0%</div>
-                    </div>
-
-                    <!-- Step List -->
-                    <div class="step-list mt-2" id="stepList"></div>
-                </div>
-            </div>
-
-            <!-- Right: Preview & Results -->
-            <div>
-                <!-- YAML Preview -->
-                <div class="panel">
-                    <div class="panel-title">📄 Protocol Preview</div>
-                    <div id="protocolName" class="mb-1" style="font-size: 1.1rem; font-weight: 600;">
-                        Select a protocol
-                    </div>
-                    <div id="protocolDesc" class="text-small text-muted mb-2"></div>
-                    <pre class="code-block yaml-preview" id="yamlPreview">No protocol selected</pre>
+                <!-- 3. Execution Controls -->
+                <div class="btn-row gap-1 mb-2">
+                    <button id="btnRun" class="btn btn-run" style="flex: 2;" onclick="runProtocol()">RUN
+                        PROTOCOL</button>
+                    <button id="btnStop" class="btn btn-stop" style="flex: 1;" onclick="abortProtocol()" disabled>STOP
+                        SCAN</button>
                 </div>
 
-                <!-- IV Curve Display -->
-                <div class="panel">
-                    <div class="panel-title">📈 IV Curve Results</div>
-                    <div class="chart-container" style="height: 350px;">
-                        <canvas id="ivChart"></canvas>
+                <!-- 4. Real-time Charts -->
+                <div class="chart-grid">
+                    <!-- IV Plot -->
+                    <div class="chart-box">
+                        <div class="flex-between">
+                            <div class="panel-title">📊 IV Curves</div>
+                            <div class="chart-controls">
+                                <div>Mode:</div>
+                                <div class="radio-group">
+                                    <div class="radio-btn active" id="modeAccum" onclick="setPlotMode('accumulate')">
+                                        Accumulate</div>
+                                    <div class="radio-btn" id="modeLatest" onclick="setPlotMode('latest')">Latest</div>
+                                </div>
+                                <div>Scale:</div>
+                                <div class="radio-group">
+                                    <div class="radio-btn active" id="scaleLinear" onclick="setScaleMode('linear')">
+                                        Linear</div>
+                                    <div class="radio-btn" id="scaleLog" onclick="setScaleMode('log')">Log</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="height: 500px;">
+                            <canvas id="ivChart"></canvas>
+                        </div>
                     </div>
-                    <div class="stats-grid mt-2">
-                        <div class="stat-box">
-                            <div class="label">Scans</div>
-                            <div class="value" id="statScans">0</div>
-                        </div>
-                        <div class="stat-box">
-                            <div class="label">Last Isc</div>
-                            <div class="value" id="statIsc">--</div>
-                        </div>
-                        <div class="stat-box">
-                            <div class="label">Last Voc</div>
-                            <div class="value" id="statVoc">--</div>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Log -->
-                <div class="panel">
-                    <div class="panel-title">📋 Log</div>
-                    <div class="log-box" id="logBox"></div>
+                    <!-- Steady State Plot -->
+                    <div class="chart-box" id="steadyBox">
+                        <div class="panel-title">⏱️ Steady State (Current vs Time)</div>
+                        <div style="height: 350px;">
+                            <canvas id="steadyChart"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // State
-        let protocols = [];
+        // --- State ---
+        let allProtocols = [];
+        let sourceMode = 'user'; // 'user' | 'all'
         let selectedProtocol = null;
         let selectedYaml = null;
-        let ivChart = null;
-        let scanCount = 0;
-        let pollInterval = null;
+        let fnameMode = 'fnr'; // 'fnr' | 'literal'
+        let plotMode = 'accumulate';
+        let scaleMode = 'linear';
+        let calData = null;
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', async () => {
-            initChart();
-            await checkConnection();
-            await loadProtocols();
+        let ivChart = null;
+        let steadyChart = null;
+        let isRunning = false;
+        let pollTimer = null;
+        let historyCursor = 0;
+        let traces = [];
+        let steadyTraces = [];
+        let startTime = 0;
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            loadProtocolsList();
+            loadCalibrationFiles();
 
             const user = UI2.getCurrentUser();
-            if (user) {
-                document.getElementById('dataFolder').value = `./data/${user}`;
-            }
-
-            Utils.log('logBox', 'Protocol Runner initialized');
+            if (user) document.getElementById('dataFolder').value = `./data/${user}`;
         });
 
-        // Check backend connection
-        async function checkConnection() {
-            const connected = await UI2.checkBackendConnection();
-            document.getElementById('backendLed').classList.toggle('ok', connected);
-            if (!connected) {
-                Utils.log('logBox', 'Backend not connected', 'error');
-            }
-        }
-
-        // Load protocol list
-        async function loadProtocols() {
-            Utils.log('logBox', 'Loading protocols...');
-            const result = await UI2.getProtocolList();
-
-            if (result && result.protocols) {
-                protocols = result.protocols;
+        // --- Protocol Loading ---
+        async function loadProtocolsList() {
+            const res = await UI2.getProtocolList();
+            if (res && res.protocols) {
+                allProtocols = res.protocols;
                 renderProtocolList();
-                Utils.log('logBox', `Loaded ${protocols.length} protocols`, 'success');
-            } else {
-                document.getElementById('protocolList').innerHTML =
-                    '<div class="alert alert-error">Failed to load protocols</div>';
-                Utils.log('logBox', 'Failed to load protocols', 'error');
             }
         }
 
-        // Render protocol list
-        function renderProtocolList() {
-            const list = document.getElementById('protocolList');
-            const currentUser = UI2.getCurrentUser();
+        function setSource(mode) {
+            sourceMode = mode;
+            document.getElementById('srcUser').classList.toggle('active', mode === 'user');
+            document.getElementById('srcAll').classList.toggle('active', mode === 'all');
+            renderProtocolList();
+        }
 
-            if (protocols.length === 0) {
-                list.innerHTML = '<div class="text-muted text-center">No protocols found</div>';
+        function renderProtocolList() {
+            const user = UI2.getCurrentUser();
+            let filtered = allProtocols;
+
+            if (sourceMode === 'user' && user) {
+                filtered = allProtocols.filter(p => p.id.startsWith(user + '/'));
+            }
+
+            const list = document.getElementById('protocolList');
+            if (filtered.length === 0) {
+                list.innerHTML = '<div class="text-center p-3 text-muted">No protocols found</div>';
                 return;
             }
 
-            // Group by folder
-            const grouped = {};
-            for (const p of protocols) {
-                const folder = p.id.includes('/') ? p.id.split('/')[0] : 'Root';
-                if (!grouped[folder]) grouped[folder] = [];
-                grouped[folder].push(p);
-            }
+            list.innerHTML = filtered.map(p => `
+                <div class="proto-item ${selectedProtocol && selectedProtocol.id === p.id ? 'active' : ''}" onclick="selectProtocol('${p.id}')">
+                    <span class="name">${p.name || 'Unnamed'}</span>
+                    <span class="id">${p.id}</span>
+                </div>
+            `).join('');
+        }
 
-            // Sort folders: Current User first, then Root, then others
-            const folders = Object.keys(grouped).sort((a, b) => {
-                if (a === currentUser) return -1;
-                if (b === currentUser) return 1;
-                if (a === 'Root') return -1;
-                if (b === 'Root') return 1;
-                return a.localeCompare(b);
-            });
+        async function selectProtocol(id) {
+            selectedProtocol = allProtocols.find(p => p.id === id);
+            renderProtocolList();
 
-            let html = '';
-            for (const folder of folders) {
-                const items = grouped[folder];
-                const isUser = folder === currentUser;
-                html += `<div class="text-small text-muted mb-1 mt-2">${isUser ? '✨ ' : ''}${folder}${isUser ? ' (You)' : ''}</div>`;
-                for (const p of items) {
-                    const name = p.name || p.id.split('/').pop();
-                    html += `
-                        <div class="protocol-item" data-id="${p.id}" onclick="selectProtocol('${p.id}')">
-                            <div class="name">${name}</div>
-                        </div>
-                    `;
+            const res = await UI2.getProtocolContent(id);
+            if (res.success) {
+                selectedYaml = res.content;
+                document.getElementById('yamlPreview').textContent = JSON.stringify(selectedYaml, null, 2);
+
+                // Set initial sequence if found
+                const loops = findLoops(selectedYaml.steps, 'pixel');
+                if (loops.length > 0) {
+                    const seq = loops[0].params.sequence;
+                    document.getElementById('pixelOverride').value = seq.join(',');
                 }
             }
-            list.innerHTML = html;
         }
 
-        // Select protocol
-        async function selectProtocol(id) {
-            // Update UI selection
-            document.querySelectorAll('.protocol-item').forEach(el => {
-                el.classList.toggle('selected', el.dataset.id === id);
-            });
-
-            selectedProtocol = protocols.find(p => p.id === id);
-            document.getElementById('protocolName').textContent = selectedProtocol?.name || id;
-            document.getElementById('btnRun').disabled = false;
-
-            // Load YAML content
-            Utils.log('logBox', `Loading protocol: ${id}`);
-            const result = await UI2.getProtocolContent(id);
-
-            if (result && result.content) {
-                selectedYaml = result.content;
-                document.getElementById('protocolDesc').textContent = result.content.description || '';
-                document.getElementById('yamlPreview').textContent =
-                    typeof result.raw === 'string' ? result.raw : JSON.stringify(result.content, null, 2);
-                Utils.log('logBox', 'Protocol loaded', 'success');
-            } else {
-                document.getElementById('yamlPreview').textContent = 'Failed to load';
-                Utils.log('logBox', 'Failed to load protocol content', 'error');
-            }
+        // --- Overrides Logic ---
+        function setFnameMode(mode) {
+            fnameMode = mode;
+            document.getElementById('modeFNR').classList.toggle('active', mode === 'fnr');
+            document.getElementById('modeLiteral').classList.toggle('active', mode === 'literal');
+            document.getElementById('fnrFields').classList.toggle('hidden', mode !== 'fnr');
+            document.getElementById('literalFields').classList.toggle('hidden', mode !== 'literal');
         }
 
-        // Toggle light mode inputs
         function toggleLightMode() {
             const mode = document.getElementById('lightMode').value;
-            document.getElementById('currentModeInputs').classList.toggle('hidden', mode !== 'current');
-            document.getElementById('irradianceModeInputs').classList.toggle('hidden', mode !== 'irradiance');
+            document.getElementById('lightCurrentGroup').classList.toggle('hidden', mode !== 'current');
+            document.getElementById('lightIrradianceGroup').classList.toggle('hidden', mode !== 'irradiance');
         }
 
-        // Run protocol
-        async function runProtocol() {
-            if (!selectedYaml) {
-                Utils.log('logBox', 'No protocol selected', 'error');
-                return;
-            }
+        async function loadCalibrationFiles() {
+            const files = await UI2.getCalibrationFiles();
+            const select = document.getElementById('calFile');
+            select.innerHTML = files.map(f => `<option value="${f}">${f}</option>`).join('');
+            if (files.length > 0) loadCalData();
+        }
 
-            const mockMode = document.getElementById('mockMode').checked;
-            Utils.log('logBox', `Starting protocol (mock=${mockMode})...`);
-
-            // Update UI state
-            document.getElementById('btnRun').disabled = true;
-            document.getElementById('btnStop').disabled = false;
-            document.getElementById('runLed').classList.add('running');
-            document.getElementById('runStatus').textContent = 'Running';
-            document.getElementById('progressSection').classList.remove('hidden');
-
-            // Build overrides
-            const overrides = {
-                mock: mockMode,
-                sample_name: document.getElementById('sampleName').value,
-                folder: document.getElementById('dataFolder').value,
-                pixels: Utils.parsePixelString(document.getElementById('pixelSequence').value)
-            };
-
-            // Light source override
-            const lightMode = document.getElementById('lightMode').value;
-            if (lightMode === 'current') {
-                overrides.led_current = parseFloat(document.getElementById('ledCurrent').value);
-            }
-
-            // Apply overrides to YAML
-            const modifiedYaml = Utils.deepClone(selectedYaml);
-
-            // Run via inline API
-            const result = await UI2.runInlineProtocol(modifiedYaml);
-
-            if (result.success !== false) {
-                Utils.log('logBox', 'Protocol started', 'success');
-                startPolling();
-            } else {
-                Utils.log('logBox', `Failed to start: ${result.message}`, 'error');
-                resetRunState();
+        async function loadCalData() {
+            const file = document.getElementById('calFile').value;
+            const res = await UI2.getCalibrationData(file);
+            if (res.success) {
+                calData = res;
+                calculateCurrent();
             }
         }
 
-        // Stop protocol
-        async function stopProtocol() {
-            Utils.log('logBox', 'Stopping protocol...');
-            await UI2.api('POST', '/protocol/abort');
-            resetRunState();
-            Utils.log('logBox', 'Protocol stopped', 'warning');
-        }
+        function calculateCurrent() {
+            if (!calData) return;
+            const target = parseFloat(document.getElementById('targetIrr').value);
 
-        // Poll for status
-        function startPolling() {
-            if (pollInterval) clearInterval(pollInterval);
-            pollInterval = setInterval(async () => {
-                const status = await UI2.getRunStatus();
-                updateProgress(status);
-
-                if (status.state === 'IDLE' || status.state === 'ERROR') {
-                    stopPolling();
-                    resetRunState();
-                    if (status.state === 'ERROR') {
-                        Utils.log('logBox', `Error: ${status.error}`, 'error');
-                    } else {
-                        Utils.log('logBox', 'Protocol completed', 'success');
+            function interpolate(x, xArr, yArr) {
+                if (x <= xArr[0]) return yArr[0];
+                if (x >= xArr[xArr.length - 1]) return yArr[yArr.length - 1];
+                for (let i = 0; i < xArr.length - 1; i++) {
+                    if (x >= xArr[i] && x <= xArr[i + 1]) {
+                        const t = (x - xArr[i]) / (xArr[i + 1] - xArr[i]);
+                        return yArr[i] + t * (yArr[i + 1] - yArr[i]);
                     }
                 }
-            }, 500);
+                return yArr[0];
+            }
+
+            const current = interpolate(target, calData.irradiances, calData.currents);
+            document.getElementById('lightCurrent').value = current.toFixed(8);
+            document.getElementById('calResult').textContent = `→ ${current.toFixed(8)} A (${calData.format})`;
         }
 
-        function stopPolling() {
-            if (pollInterval) {
-                clearInterval(pollInterval);
-                pollInterval = null;
+        // --- Helpers for Overrides ---
+        function findSteps(steps, action) {
+            let found = [];
+            for (let s of steps) {
+                if (s.action === action) found.push(s);
+                if (s.steps) found = found.concat(findSteps(s.steps, action));
+            }
+            return found;
+        }
+
+        function findLoops(steps, variable) {
+            let found = [];
+            for (let s of steps) {
+                if (s.action === 'control/loop' && s.params.variable === variable) found.push(s);
+                if (s.steps) found = found.concat(findLoops(s.steps, variable));
+            }
+            return found;
+        }
+
+        // --- Run Logic ---
+        async function runProtocol() {
+            if (!selectedYaml) return alert("Select a protocol first!");
+
+            const yaml = Utils.deepClone(selectedYaml);
+            const user = UI2.getCurrentUser();
+            const forceMock = document.getElementById('mockOverride').checked;
+
+            // Apply Overrides
+            // 0. Global Mock Override
+            if (forceMock) {
+                const hwActions = ['smu/connect', 'relays/connect', 'multipixel/connect'];
+                const applyMock = (steps) => {
+                    steps.forEach(s => {
+                        if (hwActions.includes(s.action)) {
+                            s.params.mock = true;
+                        }
+                        if (s.steps) applyMock(s.steps);
+                    });
+                };
+                applyMock(yaml.steps);
+            }
+
+            // 1. Filenames & Folders
+            const saveSteps = findSteps(yaml.steps, 'data/save');
+            const dataFolder = document.getElementById('dataFolder').value;
+            saveSteps.forEach(s => {
+                s.params.folder = dataFolder;
+                if (fnameMode === 'literal') {
+                    s.params.filename = document.getElementById('fnameGlobal').value;
+                } else {
+                    const find = document.getElementById('fnameFind').value;
+                    const repl = document.getElementById('fnameReplace').value;
+                    s.params.filename = s.params.filename.replace(find, repl);
+                }
+            });
+
+            // 2. Pixels
+            const loops = findLoops(yaml.steps, 'pixel');
+            const seq = Utils.parsePixelString(document.getElementById('pixelOverride').value);
+            loops.forEach(l => l.params.sequence = seq);
+
+            // 3. Light Source (smu/set)
+            const setSteps = findSteps(yaml.steps, 'smu/set');
+            const ledVal = parseFloat(document.getElementById('lightCurrent').value);
+            setSteps.forEach(s => s.params.value = ledVal);
+
+            // Start API
+            const res = await UI2.runInlineProtocol(yaml);
+            if (res.success) {
+                isRunning = true;
+                startTime = Date.now();
+                historyCursor = 0;
+                traces = [];
+                steadyTraces = [];
+                ivChart.data.datasets = [];
+                steadyChart.data.datasets = [];
+
+                document.getElementById('btnRun').disabled = true;
+                document.getElementById('btnStop').disabled = false;
+
+                Utils.showToast("Protocol Started!", 'success');
+                startPolling();
+            } else {
+                alert("Failed to start: " + res.message);
             }
         }
 
-        // Update progress UI
-        function updateProgress(status) {
-            const progress = status.progress || 0;
-            document.getElementById('progressFill').style.width = `${progress}%`;
-            document.getElementById('progressText').textContent = `${Math.round(progress)}%`;
-
-            // Update current step
-            if (status.current_step) {
-                document.getElementById('runStatus').textContent = status.current_step;
-            }
-
-            // Update IV data if available
-            if (status.last_iv_data) {
-                addIVCurve(status.last_iv_data);
-            }
-        }
-
-        // Reset run state
-        function resetRunState() {
-            document.getElementById('btnRun').disabled = !selectedProtocol;
+        async function abortProtocol() {
+            await UI2.abortProtocol();
+            isRunning = false;
             document.getElementById('btnStop').disabled = true;
-            document.getElementById('runLed').classList.remove('running');
-            document.getElementById('runStatus').textContent = 'Idle';
+            document.getElementById('btnRun').disabled = false;
+            Utils.showToast("Abort Requested", 'warning');
         }
 
-        // Initialize chart
-        function initChart() {
-            const ctx = document.getElementById('ivChart').getContext('2d');
-            ivChart = new Chart(ctx, {
+        function startPolling() {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = setInterval(poll, 1000);
+        }
+
+        async function poll() {
+            if (!isRunning) return;
+
+            // 1. Status
+            const status = await UI2.getProtocolStatus();
+            document.getElementById('valState').textContent = status.state;
+            document.getElementById('valDuration').textContent = status.run_duration_seconds.toFixed(1) + 's';
+
+            if (status.state === 'COMPLETE' || status.state === 'ERROR' || status.state === 'IDLE') {
+                isRunning = false;
+                document.getElementById('btnRun').disabled = false;
+                document.getElementById('btnStop').disabled = true;
+                clearInterval(pollTimer);
+                if (status.state === 'ERROR') alert("Protocol Error");
+                else Utils.showToast("Protocol Finished", 'success');
+            }
+
+            // 2. History
+            const history = await UI2.getProtocolHistory();
+            if (history && history.length > historyCursor) {
+                const newEvents = history.slice(historyCursor);
+                historyCursor = history.length;
+
+                newEvents.forEach(e => {
+                    const varName = e.variable || "";
+                    if ((varName.endsWith('iv_data') || varName.endsWith('steady_data')) && e.value && e.value.results) {
+                        const pixel = e.context?.pixel;
+                        const results = e.value.results;
+                        const isSteady = varName.endsWith('steady_data');
+                        const targetList = isSteady ? steadyTraces : traces;
+
+                        if (typeof results === 'object' && !Array.isArray(results)) {
+                            // Multichannel
+                            Object.keys(results).forEach(ch => {
+                                targetList.push({ pixel, channel: ch, data: results[ch], name: varName });
+                            });
+                        } else {
+                            targetList.push({ pixel, channel: e.value.channel || 1, data: results, name: varName });
+                        }
+                    }
+                });
+
+                document.getElementById('valPoints').textContent = traces.reduce((acc, t) => acc + t.data.length, 0);
+                updateCharts();
+            }
+        }
+
+        // --- Plotting ---
+        function initCharts() {
+            const ivCtx = document.getElementById('ivChart').getContext('2d');
+            ivChart = new Chart(ivCtx, {
                 type: 'scatter',
                 data: { datasets: [] },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    animation: { duration: 0 },
+                    animation: false,
                     scales: {
-                        x: {
-                            title: { display: true, text: 'Voltage (V)', color: '#888' },
-                            ticks: { color: '#888' },
-                            grid: { color: 'rgba(255,255,255,0.1)' }
-                        },
-                        y: {
-                            title: { display: true, text: 'Current (A)', color: '#888' },
-                            ticks: { color: '#888' },
-                            grid: { color: 'rgba(255,255,255,0.1)' }
-                        }
+                        x: { title: { display: true, text: 'Voltage (V)', color: '#888' }, grid: { color: '#333' } },
+                        y: { title: { display: true, text: 'Current (A)', color: '#888' }, grid: { color: '#333' } }
                     },
-                    plugins: {
-                        legend: {
-                            display: true,
-                            labels: { color: '#888' }
-                        }
+                    plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } }
+                }
+            });
+
+            const stdCtx = document.getElementById('steadyChart').getContext('2d');
+            steadyChart = new Chart(stdCtx, {
+                type: 'line',
+                data: { datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    scales: {
+                        x: { title: { display: true, text: 'Points', color: '#888' }, grid: { color: '#333' } },
+                        y: { title: { display: true, text: 'Current (A)', color: '#888' }, grid: { color: '#333' } }
                     }
                 }
             });
         }
 
-        // Add IV curve to chart
-        function addIVCurve(data) {
-            scanCount++;
-            document.getElementById('statScans').textContent = scanCount;
+        function setPlotMode(mode) {
+            plotMode = mode;
+            document.getElementById('modeAccum').classList.toggle('active', mode === 'accumulate');
+            document.getElementById('modeLatest').classList.toggle('active', mode === 'latest');
+            updateCharts();
+        }
 
-            // Create dataset
-            const colors = ['#00d4ff', '#00ff66', '#ff9900', '#ff4444', '#aa66ff', '#4488ff'];
-            const color = colors[(scanCount - 1) % colors.length];
+        function setScaleMode(mode) {
+            scaleMode = mode;
+            document.getElementById('scaleLinear').classList.toggle('active', mode === 'linear');
+            document.getElementById('scaleLog').classList.toggle('active', mode === 'log');
 
-            const dataset = {
-                label: data.label || `Scan ${scanCount}`,
-                data: data.voltage.map((v, i) => ({ x: v, y: data.current[i] })),
-                borderColor: color,
-                backgroundColor: color + '20',
-                pointRadius: 2,
-                showLine: true,
-                tension: 0.1
-            };
+            ivChart.options.scales.y.type = mode === 'log' ? 'logarithmic' : 'linear';
+            ivChart.options.scales.y.title.text = mode === 'log' ? '|Current| (A)' : 'Current (A)';
+            steadyChart.options.scales.y.type = mode === 'log' ? 'logarithmic' : 'linear';
+            updateCharts();
+        }
 
-            // Keep last 8 curves
-            if (ivChart.data.datasets.length >= 8) {
-                ivChart.data.datasets.shift();
-            }
-            ivChart.data.datasets.push(dataset);
+        function updateCharts() {
+            const colors = ['#00d4ff', '#00ff66', '#ff9900', '#ff4444', '#aa66ff', '#4488ff', '#ffffff'];
+
+            // 1. IV Chart
+            let ivToDisplay = plotMode === 'accumulate' ? traces : (traces.length > 0 ? [traces[traces.length - 1]] : []);
+            ivChart.data.datasets = ivToDisplay.map((t, i) => {
+                const label = t.pixel ? `Pix ${t.pixel} (${t.name})` : `Trace ${i}`;
+                const points = t.data.map(p => {
+                    const y = scaleMode === 'log' ? Math.max(1e-12, Math.abs(p.current)) : p.current;
+                    return { x: p.voltage, y: y };
+                });
+                return {
+                    label: label,
+                    data: points,
+                    borderColor: colors[i % colors.length],
+                    showLine: true,
+                    borderWidth: 2,
+                    pointRadius: 1
+                };
+            });
             ivChart.update('none');
 
-            // Update stats
-            if (data.current && data.current.length > 0) {
-                const isc = data.current[0];
-                document.getElementById('statIsc').textContent = Utils.formatCurrent(isc);
-            }
-            if (data.voltage && data.voltage.length > 0) {
-                // Find Voc (where current crosses zero)
-                for (let i = 0; i < data.current.length - 1; i++) {
-                    if (data.current[i] * data.current[i + 1] < 0) {
-                        document.getElementById('statVoc').textContent =
-                            Utils.formatVoltage(data.voltage[i]);
-                        break;
-                    }
-                }
-            }
+            // 2. Steady Chart
+            let stdToDisplay = plotMode === 'accumulate' ? steadyTraces : (steadyTraces.length > 0 ? [steadyTraces[steadyTraces.length - 1]] : []);
+            steadyChart.data.datasets = stdToDisplay.map((t, i) => {
+                const label = t.pixel ? `Pix ${t.pixel} (${t.name})` : `Steady ${i}`;
+                const points = t.data.map((p, idx) => {
+                    const y = scaleMode === 'log' ? Math.max(1e-12, Math.abs(p.current)) : p.current;
+                    return { x: idx, y: y };
+                });
+                return {
+                    label: label,
+                    data: points,
+                    borderColor: colors[i % colors.length],
+                    borderWidth: 2,
+                    pointRadius: 0
+                };
+            });
+            steadyChart.update('none');
         }
     </script>
 </body>

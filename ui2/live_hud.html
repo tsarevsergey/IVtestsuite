@@ -641,17 +641,19 @@
             const filename = document.getElementById('calFileSelect').value;
             if (!filename) return;
 
-            const res = await UI2.api('GET', '/data/load', { folder: '.', filename });
-            if (res.success && res.parsed_rows) {
-                const rows = res.parsed_rows;
-                const cols = rows[0].length;
-                const currents = rows.map(r => r[0]);
-                const irradiances = rows.map(r => r[cols - 1]);
-                calibrationData = { currents, irradiances };
-                const min = Math.min(...irradiances);
-                const max = Math.max(...irradiances);
-                document.getElementById('calRangeInfo').textContent = `Range: ${min.toExponential(2)} - ${max.toExponential(2)} W/cm²`;
+            // Use the new robust endpoint in backend
+            const res = await UI2.getCalibrationData(filename);
+            if (res.success && res.irradiances) {
+                calibrationData = {
+                    currents: res.currents,
+                    irradiances: res.irradiances
+                };
+                const min = Math.min(...res.irradiances);
+                const max = Math.max(...res.irradiances);
+                document.getElementById('calRangeInfo').textContent = `Range: ${min.toExponential(2)} - ${max.toExponential(2)} W/cm² (${res.format || 'unknown'})`;
                 calculateLedCurrent();
+            } else {
+                Utils.log('logBox', `Failed to load cal: ${res.message}`, 'error');
             }
         }
 

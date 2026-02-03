@@ -9,13 +9,22 @@
     <script src="js/api.js"></script>
     <script src="js/utils.js"></script>
     <style>
+        .wizard-container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 1.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
         .template-card {
             padding: 1rem;
-            border: 2px solid var(--border-color);
-            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
             cursor: pointer;
             transition: all 0.2s;
-            margin-bottom: 0.75rem;
+            background: var(--bg-secondary);
         }
 
         .template-card:hover {
@@ -23,511 +32,615 @@
             background: rgba(0, 212, 255, 0.05);
         }
 
-        .template-card.selected {
+        .template-card.active {
             border-color: var(--accent-cyan);
             background: rgba(0, 212, 255, 0.1);
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.1);
         }
 
-        .template-card .title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 0.25rem;
-        }
-
-        .template-card .desc {
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-        }
-
-        .param-section {
-            margin-bottom: 1.5rem;
-        }
-
-        .param-section h3 {
-            font-size: 0.9rem;
+        .template-card h3 {
+            font-size: 0.95rem;
+            margin-bottom: 0.35rem;
             color: var(--accent-cyan);
-            margin-bottom: 0.75rem;
+        }
+
+        .template-card p {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .group-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
             padding-bottom: 0.5rem;
             border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-section {
+            background: var(--bg-panel);
+            padding: 1.25rem;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .preview-pane {
+            margin-top: 1.5rem;
+            border-top: 2px solid var(--border-color);
+            padding-top: 1.5rem;
+        }
+
+        .alert-info {
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        .tag {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
         }
     </style>
 </head>
 
 <body>
     <div class="container">
-        <!-- Header -->
         <div class="page-header">
             <h1 class="page-title">🧙‍♂️ Experiment Wizard</h1>
-            <div class="status-bar">
-                <div class="status-item">
-                    <div class="led" id="backendLed"></div>
-                    <span>Backend</span>
-                </div>
-            </div>
         </div>
 
-        <div class="grid-sidebar">
-            <!-- Left: Template Selection & Parameters -->
-            <div>
-                <!-- Template Selection -->
-                <div class="panel">
-                    <div class="panel-title">📋 Select Template</div>
-
-                    <div class="template-card" data-template="multipixel" onclick="selectTemplate('multipixel')">
-                        <div class="title">🔬 Multipixel IV Sweep</div>
-                        <div class="desc">Single IV sweep across all specified pixels</div>
+        <div class="wizard-container">
+            <!-- Left: Template Selection -->
+            <div class="template-sidebar">
+                <div class="panel-title mb-2">Select Template</div>
+                <div id="templateList">
+                    <div class="template-card active" onclick="selectTemplate('multipixel_iv')">
+                        <h3>Multipixel IV Sweep</h3>
+                        <p>Sequential IV sweep on specified pixels via relay matrix.</p>
                     </div>
-
-                    <div class="template-card" data-template="dark_light" onclick="selectTemplate('dark_light')">
-                        <div class="title">🌑→💡 Dark → Light (Batch)</div>
-                        <div class="desc">Sweep all pixels in dark, then all pixels with light ON</div>
+                    <div class="template-card" onclick="selectTemplate('dark_light_batch')">
+                        <h3>Dark → Light (Batch)</h3>
+                        <p>Measure all pixels in dark, then all pixels under illumination.</p>
                     </div>
-
-                    <div class="template-card" data-template="light_dark" onclick="selectTemplate('light_dark')">
-                        <div class="title">💡→🌑 Light → Dark (Batch)</div>
-                        <div class="desc">Sweep all pixels with light ON, then all in dark</div>
+                    <div class="template-card" onclick="selectTemplate('light_dark_batch')">
+                        <h3>Light → Dark (Batch)</h3>
+                        <p>Measure all pixels under illumination, then all pixels in dark.</p>
                     </div>
                 </div>
 
-                <!-- Template Description -->
-                <div class="panel" id="templateInfo" style="display: none;">
-                    <div class="alert alert-info" id="templateDescription"></div>
+                <div class="panel mt-2">
+                    <button class="btn btn-primary btn-full" onclick="generateProtocol()">✨ Generate Protocol</button>
                 </div>
             </div>
 
-            <!-- Right: Configuration Form -->
-            <div>
-                <div class="panel" id="configPanel" style="display: none;">
-                    <div class="panel-title">⚙️ Configuration</div>
+            <!-- Right: Configuration -->
+            <div class="config-main">
+                <div class="alert-info" id="templateDesc">
+                    Select a template to begin configuration.
+                </div>
 
-                    <!-- Sample Settings -->
-                    <div class="param-section">
-                        <h3>📁 Sample & Output</h3>
+                <div class="config-grid">
+                    <!-- Column 1: Sample & Core Sweep -->
+                    <div class="form-section">
+                        <div class="group-title">📦 Sample & Pixels</div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Sample Name</label>
-                                <input type="text" id="sampleName" value="TEST">
+                                <input type="text" id="sample_name" value="TEST">
                             </div>
                             <div class="form-group">
-                                <label>Data Folder</label>
-                                <input type="text" id="dataFolder" value="./data">
+                                <label>Pixels (1-6, 8)</label>
+                                <input type="text" id="pixel_str" value="1-6">
                             </div>
                         </div>
-                        <div class="form-group">
-                            <label>Pixel Sequence (e.g. 1,2,3 or 1-8)</label>
-                            <input type="text" id="pixelSequence" value="1,2,3,4,5,6,7,8">
-                        </div>
-                    </div>
 
-                    <!-- Sweep Settings -->
-                    <div class="param-section">
-                        <h3>📊 IV Sweep Parameters</h3>
-                        <div class="form-row-3">
+                        <div class="group-title mt-2">📉 IV Sweep Settings</div>
+                        <div class="form-row">
                             <div class="form-group">
                                 <label>Start (V)</label>
-                                <input type="number" id="sweepStart" value="-0.2" step="0.1">
+                                <input type="number" id="start_v" value="0.0" step="0.1">
                             </div>
                             <div class="form-group">
                                 <label>Stop (V)</label>
-                                <input type="number" id="sweepStop" value="1.2" step="0.1">
-                            </div>
-                            <div class="form-group">
-                                <label>Points</label>
-                                <input type="number" id="sweepPoints" value="50" min="10" max="500">
+                                <input type="number" id="stop_v" value="1.0" step="0.1">
                             </div>
                         </div>
-                        <div class="form-row-3">
+                        <div class="form-row">
                             <div class="form-group">
-                                <label>Delay (s)</label>
-                                <input type="number" id="sweepDelay" value="0.01" step="0.01" min="0">
+                                <label>Points</label>
+                                <input type="number" id="points" value="11">
                             </div>
                             <div class="form-group">
-                                <label>Type</label>
-                                <select id="sweepType">
+                                <label>Delay (s)</label>
+                                <input type="number" id="delay" value="0.05" step="0.01">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Sweep Type</label>
+                                <select id="sweep_type">
                                     <option value="single">Single</option>
                                     <option value="double" selected>Double</option>
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label>Direction</label>
-                                <select id="sweepDirection">
+                                <select id="direction">
                                     <option value="forward" selected>Forward</option>
                                     <option value="backward">Backward</option>
                                 </select>
                             </div>
                         </div>
+                        <div class="form-group mt-1">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="keep_output_on"> Keep SMU ON after scan
+                            </label>
+                        </div>
                     </div>
 
-                    <!-- Hardware Settings -->
-                    <div class="param-section">
-                        <h3>🔧 Hardware Configuration</h3>
+                    <!-- Column 2: Advanced & Hardware -->
+                    <div class="form-section">
+                        <!-- Batch specific fields -->
+                        <div id="batchFields" class="hidden">
+                            <div class="group-title">⏱️ Batch Timing</div>
+                            <div class="form-group">
+                                <label>Pixel Wait Time (s)</label>
+                                <input type="number" id="wait_time" value="0.5" step="0.1">
+                            </div>
+
+                            <div class="group-title mt-2">🕒 Steady State</div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="enable_steady_state" onchange="toggleSteadyState()">
+                                    Enable Steady State
+                                </label>
+                            </div>
+                            <div id="steadyStateFields" class="hidden">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Duration (s)</label>
+                                        <input type="number" id="steady_time" value="10.0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Interval (s)</label>
+                                        <input type="number" id="steady_delay" value="0.1">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Dark Hold (V)</label>
+                                        <input type="number" id="dark_hold_v" value="0.0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Light Hold (V)</label>
+                                        <input type="number" id="light_hold_v" value="0.0">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="group-title" id="hwTitle">⚙️ Hardware Config</div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label>Sweep Channel</label>
-                                <select id="sweepChannel">
-                                    <option value="1">CH 1</option>
-                                    <option value="2" selected>CH 2</option>
-                                </select>
+                                <label>Compliance (A)</label>
+                                <input type="number" id="compliance" value="0.1" step="0.001">
                             </div>
                             <div class="form-group">
                                 <label>NPLC (Speed)</label>
-                                <input type="number" id="nplc" value="1.0" step="0.1" min="0.01" max="100">
+                                <input type="number" id="nplc" value="1.0" step="0.1">
                             </div>
                         </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Compliance Type</label>
-                                <select id="complianceType">
-                                    <option value="CURR" selected>Current (A)</option>
-                                    <option value="VOLT">Voltage (V)</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Compliance Value</label>
-                                <input type="number" id="complianceValue" value="0.1" step="0.01">
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- Light Settings (for dark/light modes) -->
-                    <div class="param-section" id="lightSection" style="display: none;">
-                        <h3>💡 Light Source</h3>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Bias Channel</label>
-                                <select id="lightChannel">
-                                    <option value="1" selected>CH 1</option>
-                                    <option value="2">CH 2</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Mode</label>
-                                <select id="lightMode" onchange="toggleLightMode()">
-                                    <option value="current">Current (A)</option>
-                                    <option value="irradiance">Irradiance</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div id="lightCurrentInput">
-                            <div class="form-group">
-                                <label>LED Current (A)</label>
-                                <input type="number" id="ledCurrent" value="0.001" step="0.0001">
-                            </div>
-                        </div>
-                        <div id="lightIrradianceInput" class="hidden">
+                        <!-- Light Channel only for batch -->
+                        <div id="lightHwFields" class="hidden">
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Calibration File</label>
-                                    <select id="calibrationFile"></select>
+                                    <label>Sweep Channel</label>
+                                    <select id="sweep_channel">
+                                        <option value="1">CH 1</option>
+                                        <option value="2" selected>CH 2</option>
+                                    </select>
                                 </div>
                                 <div class="form-group">
-                                    <label>Target Irradiance (W/cm²)</label>
-                                    <input type="number" id="targetIrradiance" value="0.1" step="0.01">
+                                    <label>Light Channel</label>
+                                    <select id="light_channel">
+                                        <option value="1" selected>CH 1</option>
+                                        <option value="2">CH 2</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="divider"></div>
+                    <!-- Column 3: Light Source -->
+                    <div class="form-section" id="lightSourceSection">
+                        <div class="group-title">💡 Light Source (Bias Channel)</div>
+                        <div class="form-group mb-2">
+                            <label>Input Mode</label>
+                            <div class="btn-row-2">
+                                <button class="btn btn-sm btn-outline active" id="modeCurrent"
+                                    onclick="setLightMode('current')">Current (A)</button>
+                                <button class="btn btn-sm btn-outline" id="modeIrradiance"
+                                    onclick="setLightMode('irradiance')">Irradiance</button>
+                            </div>
+                        </div>
 
-                    <!-- Actions -->
-                    <div class="btn-row-3">
-                        <button class="btn btn-primary" onclick="generateProtocol()">📄 Generate YAML</button>
-                        <button class="btn btn-success" onclick="saveProtocol()">💾 Save Protocol</button>
-                        <button class="btn btn-warning" onclick="runDirect()">▶ Run Now</button>
+                        <div id="currentGroup">
+                            <div class="form-group">
+                                <label>LED Current (A)</label>
+                                <input type="number" id="light_current" value="0.001" step="0.0001">
+                            </div>
+                        </div>
+
+                        <div id="irradianceGroup" class="hidden">
+                            <div class="form-group mb-2">
+                                <label>Calibration File</label>
+                                <select id="calFile" onchange="loadCalData()"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Target Irradiance (W/cm²)</label>
+                                <input type="number" id="target_irradiance" value="0.001" step="0.0001"
+                                    oninput="calculateCurrent()">
+                            </div>
+                            <div id="calInfo" class="text-small text-muted mt-1">Select a file to see ranges</div>
+                            <div id="convResult" class="alert-info mt-2 hidden"></div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- YAML Preview -->
-                <div class="panel">
-                    <div class="panel-title">📄 Generated Protocol</div>
-                    <pre class="code-block" id="yamlPreview"
-                        style="min-height: 300px;">Select a template to begin...</pre>
-                </div>
+                <!-- Preview & Save -->
+                <div id="previewArea" class="preview-pane hidden">
+                    <div class="panel">
+                        <div class="panel-title">📄 Generated Protocol</div>
+                        <pre class="code-block" id="yamlPreview" style="max-height: 400px; overflow: auto;"></pre>
 
-                <!-- Save Dialog -->
-                <div class="panel" id="saveDialog" style="display: none;">
-                    <div class="panel-title">💾 Save Protocol</div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Protocol Name</label>
-                            <input type="text" id="protocolName" value="">
+                        <div class="divider mt-2 mb-2"></div>
+                        <div class="form-row gap-1 align-center">
+                            <div class="form-group mb-0" style="flex: 2">
+                                <label class="text-small">Filename (no extension)</label>
+                                <input type="text" id="finalFilename" class="p-1">
+                            </div>
+                            <div class="form-group mb-0" style="flex: 1">
+                                <label class="text-small">Target User</label>
+                                <div id="userFolderDisplay" class="text-cyan font-bold p-1"
+                                    style="background: var(--bg-primary); border-radius: 4px; border: 1px solid var(--border-color);">
+                                    -</div>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label>Target User Folder</label>
-                            <div id="userFolderDisplay"
-                                style="padding: 0.75rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--accent-cyan); font-weight: 600;">
-                                -</div>
+                        <div class="btn-row-2 gap-1 mt-2">
+                            <button class="btn btn-success" onclick="confirmSave()">💾 Save to Protocols</button>
+                            <button class="btn btn-outline" onclick="copyYaml()">📋 Copy YAML</button>
                         </div>
-                    </div>
-                    <div class="btn-row">
-                        <button class="btn btn-success" onclick="confirmSave()">✓ Save</button>
-                        <button class="btn btn-outline" onclick="cancelSave()">✗ Cancel</button>
                     </div>
                 </div>
             </div>
         </div>
+
+    </div>
     </div>
 
     <script>
-        // State
-        let selectedTemplate = null;
+        let currentTemplate = 'multipixel_iv';
         let generatedYaml = null;
+        let calData = null;
 
-        const TEMPLATE_DESCRIPTIONS = {
-            'multipixel': 'Performs a single IV sweep on each specified pixel in sequence. Ideal for basic device characterization.',
-            'dark_light': 'Batch operation: First scans ALL pixels in dark conditions, then scans ALL pixels again with the light source ON. Useful for measuring photovoltaic response.',
-            'light_dark': 'Batch operation: First scans ALL pixels with light ON, then scans ALL pixels in dark. Useful for studying decay or stabilization effects.'
+        const DESCRIPTIONS = {
+            'multipixel_iv': 'Perform a standard IV sweep on a series of pixels sequentially. Each pixel is connected via relay, swept, and the data is saved.',
+            'dark_light_batch': 'Batch operation: Firstly scans ALL specified pixels in the dark, then scans ALL pixels again with the light source ON.',
+            'light_dark_batch': 'Batch operation: Firstly scans ALL specified pixels with the light source ON, then scans ALL pixels again in the dark.'
         };
 
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
-            await checkConnection();
+            selectTemplate('multipixel_iv');
+            loadCalibrationFiles();
+            const user = UI2.getCurrentUser();
+            document.getElementById('userFolderDisplay').textContent = user || 'Custom';
         });
 
-        async function checkConnection() {
-            const connected = await UI2.checkBackendConnection();
-            document.getElementById('backendLed').classList.toggle('ok', connected);
+        function selectTemplate(id) {
+            currentTemplate = id;
+            document.querySelectorAll('.template-card').forEach(c => c.classList.remove('active'));
+            const idxMap = { 'multipixel_iv': 0, 'dark_light_batch': 1, 'light_dark_batch': 2 };
+            document.querySelectorAll('.template-card')[idxMap[id]].classList.add('active');
+
+            document.getElementById('templateDesc').textContent = DESCRIPTIONS[id];
+
+            // Toggle visibility of fields
+            const isBatch = id !== 'multipixel_iv';
+            document.getElementById('batchFields').classList.toggle('hidden', !isBatch);
+            document.getElementById('lightHwFields').classList.toggle('hidden', !isBatch);
+            document.getElementById('lightSourceSection').classList.toggle('hidden', !isBatch);
+
+            // Adjust hardware titles
+            document.getElementById('hwTitle').textContent = isBatch ? '📐 Sweep Channel Config' : '⚙️ Hardware Config';
         }
 
-        // Select template
-        function selectTemplate(template) {
-            selectedTemplate = template;
-
-            // Update UI
-            document.querySelectorAll('.template-card').forEach(el => {
-                el.classList.toggle('selected', el.dataset.template === template);
-            });
-
-            // Show configuration panel
-            document.getElementById('configPanel').style.display = 'block';
-            document.getElementById('templateInfo').style.display = 'block';
-            document.getElementById('templateDescription').textContent = TEMPLATE_DESCRIPTIONS[template];
-
-            // Show/hide light section
-            const showLight = template !== 'multipixel';
-            document.getElementById('lightSection').style.display = showLight ? 'block' : 'none';
-
-            // Generate initial YAML
-            generateProtocol();
+        function toggleSteadyState() {
+            const enabled = document.getElementById('enable_steady_state').checked;
+            document.getElementById('steadyStateFields').classList.toggle('hidden', !enabled);
         }
 
-        // Toggle light mode
-        function toggleLightMode() {
-            const mode = document.getElementById('lightMode').value;
-            document.getElementById('lightCurrentInput').classList.toggle('hidden', mode !== 'current');
-            document.getElementById('lightIrradianceInput').classList.toggle('hidden', mode !== 'irradiance');
+        async function loadCalibrationFiles() {
+            const files = await UI2.getCalibrationFiles();
+            const select = document.getElementById('calFile');
+            select.innerHTML = files.map(f => `<option value="${f}">${f}</option>`).join('');
+            if (files.length > 0) loadCalData();
         }
 
-        // Generate protocol YAML
-        function generateProtocol() {
-            if (!selectedTemplate) return;
+        async function loadCalData() {
+            const file = document.getElementById('calFile').value;
+            if (!file) return;
 
-            const params = getParams();
+            const res = await UI2.getCalibrationData(file);
+            if (res.success) {
+                calData = res;
+                const min = Math.min(...res.irradiances);
+                const max = Math.max(...res.irradiances);
+                document.getElementById('calInfo').textContent = `📊 Range: ${min.toFixed(6)} - ${max.toFixed(6)} W/cm² (${res.format})`;
+                calculateCurrent();
+            }
+        }
 
-            let yaml;
-            switch (selectedTemplate) {
-                case 'multipixel':
-                    yaml = generateMultipixelSweep(params);
-                    break;
-                case 'dark_light':
-                    yaml = generateDarkLightBatch(params, 'dark_first');
-                    break;
-                case 'light_dark':
-                    yaml = generateDarkLightBatch(params, 'light_first');
-                    break;
+        function calculateCurrent() {
+            if (!calData) return;
+            const target = parseFloat(document.getElementById('target_irradiance').value);
+
+            // Linear Interpolation (JS version of np.interp)
+            function interpolate(x, xArr, yArr) {
+                if (x <= xArr[0]) return yArr[0];
+                if (x >= xArr[xArr.length - 1]) return yArr[yArr.length - 1];
+                for (let i = 0; i < xArr.length - 1; i++) {
+                    if (x >= xArr[i] && x <= xArr[i + 1]) {
+                        const t = (x - xArr[i]) / (xArr[i + 1] - xArr[i]);
+                        return yArr[i] + t * (yArr[i + 1] - yArr[i]);
+                    }
+                }
+                return yArr[0];
             }
 
-            generatedYaml = yaml;
-            document.getElementById('yamlPreview').textContent =
-                JSON.stringify(yaml, null, 2).replace(/"/g, '');
+            const current = interpolate(target, calData.irradiances, calData.currents);
+            document.getElementById('light_current').value = current.toFixed(8);
+
+            const resultEl = document.getElementById('convResult');
+            resultEl.classList.remove('hidden');
+            resultEl.textContent = `⚡ Converted: ${current.toFixed(8)} A`;
         }
 
-        // Get parameters from form
+        function setLightMode(mode) {
+            document.getElementById('modeCurrent').classList.toggle('active', mode === 'current');
+            document.getElementById('modeIrradiance').classList.toggle('active', mode === 'irradiance');
+            document.getElementById('currentGroup').classList.toggle('hidden', mode !== 'current');
+            document.getElementById('irradianceGroup').classList.toggle('hidden', mode !== 'irradiance');
+        }
+
         function getParams() {
             return {
-                sample_name: document.getElementById('sampleName').value,
-                folder: document.getElementById('dataFolder').value,
-                pixels: Utils.parsePixelString(document.getElementById('pixelSequence').value),
-                sweep_start: parseFloat(document.getElementById('sweepStart').value),
-                sweep_stop: parseFloat(document.getElementById('sweepStop').value),
-                points: parseInt(document.getElementById('sweepPoints').value),
-                delay: parseFloat(document.getElementById('sweepDelay').value),
-                sweep_type: document.getElementById('sweepType').value,
-                direction: document.getElementById('sweepDirection').value,
-                sweep_channel: parseInt(document.getElementById('sweepChannel').value),
+                sample_name: document.getElementById('sample_name').value,
+                pixel_str: document.getElementById('pixel_str').value,
+                start_v: parseFloat(document.getElementById('start_v').value),
+                stop_v: parseFloat(document.getElementById('stop_v').value),
+                points: parseInt(document.getElementById('points').value),
+                delay: parseFloat(document.getElementById('delay').value),
+                sweep_type: document.getElementById('sweep_type').value,
+                direction: document.getElementById('direction').value,
+                keep_output_on: document.getElementById('keep_output_on').checked,
+
+                // Batch/Adv
+                wait_time: parseFloat(document.getElementById('wait_time').value),
+                enable_steady_state: document.getElementById('enable_steady_state').checked,
+                steady_time: parseFloat(document.getElementById('steady_time').value),
+                steady_delay: parseFloat(document.getElementById('steady_delay').value),
+                dark_hold_v: parseFloat(document.getElementById('dark_hold_v').value),
+                light_hold_v: parseFloat(document.getElementById('light_hold_v').value),
+
+                // Hw
+                compliance: parseFloat(document.getElementById('compliance').value),
                 nplc: parseFloat(document.getElementById('nplc').value),
-                compliance_type: document.getElementById('complianceType').value,
-                compliance: parseFloat(document.getElementById('complianceValue').value),
-                light_channel: parseInt(document.getElementById('lightChannel').value),
-                light_current: parseFloat(document.getElementById('ledCurrent').value)
+                sweep_channel: parseInt(document.getElementById('sweep_channel')?.value || 1),
+                light_channel: parseInt(document.getElementById('light_channel')?.value || 2),
+                light_current: parseFloat(document.getElementById('light_current').value)
             };
         }
 
-        // Generate Multipixel Sweep
-        function generateMultipixelSweep(p) {
+        function parsePixels(str) {
+            const pixels = [];
+            str.split(',').forEach(part => {
+                part = part.trim();
+                if (part.includes('-')) {
+                    const [start, end] = part.split('-').map(Number);
+                    for (let i = start; i <= end; i++) pixels.push(i);
+                } else if (part) pixels.push(Number(part));
+            });
+            return [...new Set(pixels)].sort((a, b) => a - b);
+        }
+
+        function generateProtocol() {
+            const p = getParams();
+            const pixels = parsePixels(p.pixel_str);
+
+            if (currentTemplate === 'multipixel_iv') {
+                generatedYaml = generateMultipixelIV(p, pixels);
+            } else {
+                generatedYaml = generateBatchSweep(p, pixels, currentTemplate === 'dark_light_batch' ? 'dark_first' : 'light_first');
+            }
+
+            document.getElementById('yamlPreview').textContent = JSON.stringify(generatedYaml, null, 2);
+            document.getElementById('previewArea').classList.remove('hidden');
+            document.getElementById('finalFilename').value = generatedYaml.name.toLowerCase().replace(/\s+/g, '_');
+
+            Utils.showToast("Protocol generated!", 'success');
+        }
+
+        function generateMultipixelIV(p, pixels) {
             return {
-                name: `${p.sample_name}_multipixel`,
-                description: `Multipixel IV sweep for ${p.sample_name}`,
+                name: `Multipixel Sweep - ${p.sample_name}`,
+                description: `IV sweep on pixels ${p.pixel_str}. ${p.start_v}V to ${p.stop_v}V.`,
+                version: 1.2,
                 steps: [
-                    { action: 'smu/connect', params: { channel: p.sweep_channel, mock: true } },
+                    { action: 'smu/connect', params: { channel: 1, mock: false } },
                     { action: 'relays/connect', params: { mock: true } },
+                    { action: 'smu/configure', params: { compliance: p.compliance, nplc: p.nplc } },
+                    { action: 'smu/source-mode', params: { mode: 'VOLT' } },
+                    { action: 'relays/all-off' },
                     {
-                        action: 'smu/configure', params: {
-                            channel: p.sweep_channel,
-                            nplc: p.nplc,
-                            compliance: p.compliance
-                        }
-                    },
-                    {
-                        action: 'loop',
-                        params: { variable: 'pixel', sequence: p.pixels },
+                        action: 'control/loop',
+                        params: { variable: 'pixel', sequence: pixels },
                         steps: [
-                            { action: 'relays/pixel', params: { pixel_id: '${pixel}' } },
-                            { action: 'delay', params: { seconds: 0.5 } },
+                            { action: 'relays/pixel', params: { pixel_id: '$pixel' } },
+                            { action: 'wait', params: { seconds: 0.5 } },
                             {
                                 action: 'smu/sweep',
                                 params: {
-                                    channel: p.sweep_channel,
-                                    start: p.sweep_start,
-                                    stop: p.sweep_stop,
-                                    points: p.points,
-                                    delay: p.delay,
-                                    sweep_type: p.sweep_type
+                                    start: p.start_v, stop: p.stop_v, points: p.points,
+                                    delay: p.delay, sweep_type: p.sweep_type, direction: p.direction,
+                                    keep_output_on: p.keep_output_on
                                 },
-                                capture: 'iv_data'
+                                capture_as: 'iv_data'
                             },
                             {
                                 action: 'data/save',
-                                params: {
-                                    filename: `${p.sample_name}_P\${pixel}`,
-                                    folder: p.folder,
-                                    source: 'iv_data'
-                                }
+                                params: { data: '$iv_data', filename: `${p.sample_name}_{$pixel}`, folder: './data' }
                             }
                         ]
                     },
-                    { action: 'smu/output', params: { channel: p.sweep_channel, enabled: false } }
+                    { action: 'smu/output', params: { enabled: false } },
+                    { action: 'relays/all-off' }
                 ]
             };
         }
 
-        // Generate Dark/Light Batch
-        function generateDarkLightBatch(p, order) {
+        function generateBatchSweep(p, pixels, order) {
             const darkFirst = order === 'dark_first';
 
-            const makeLoopStep = (isLight, suffix) => ({
-                action: 'loop',
-                params: { variable: 'pixel', sequence: p.pixels },
-                steps: [
-                    { action: 'relays/pixel', params: { pixel_id: '${pixel}' } },
-                    ...(isLight ? [
-                        { action: 'smu/set', params: { channel: p.light_channel, value: p.light_current } },
-                        { action: 'smu/output', params: { channel: p.light_channel, enabled: true } },
-                        { action: 'delay', params: { seconds: 0.5 } }
-                    ] : []),
-                    {
+            const makeLoopStep = (isLight, isLast) => {
+                const mode = isLight ? 'light' : 'dark';
+                const holdV = isLight ? p.light_hold_v : p.dark_hold_v;
+
+                const loopSteps = [
+                    { action: 'relays/pixel', params: { pixel_id: '$pixel' } },
+                    { action: 'wait', params: { seconds: p.wait_time } }
+                ];
+
+                if (p.enable_steady_state) {
+                    const points = Math.max(1, Math.floor(p.steady_time / p.steady_delay));
+                    loopSteps.push({
                         action: 'smu/sweep',
                         params: {
-                            channel: p.sweep_channel,
-                            start: p.sweep_start,
-                            stop: p.sweep_stop,
-                            points: p.points,
-                            delay: p.delay,
-                            sweep_type: p.sweep_type
+                            channel: p.sweep_channel, start: holdV, stop: holdV, points: points,
+                            delay: p.steady_delay, sweep_type: 'single', keep_output_on: true
                         },
-                        capture: 'iv_data'
-                    },
-                    {
+                        capture_as: `${mode}_steady_data`
+                    });
+                    loopSteps.push({
                         action: 'data/save',
-                        params: {
-                            filename: `${p.sample_name}_P\${pixel}${suffix}`,
-                            folder: p.folder,
-                            source: 'iv_data'
-                        }
-                    },
-                    ...(isLight ? [
-                        { action: 'smu/output', params: { channel: p.light_channel, enabled: false } }
-                    ] : [])
-                ]
-            });
+                        params: { data: `$${mode}_steady_data`, filename: `${p.sample_name}_steady_${holdV}V_${mode}_{$pixel}` }
+                    });
+                }
 
-            const loop1 = makeLoopStep(!darkFirst, darkFirst ? '_drk' : '_lit');
-            const loop2 = makeLoopStep(darkFirst, darkFirst ? '_lit' : '_drk');
+                loopSteps.push({
+                    action: 'smu/sweep',
+                    params: {
+                        channel: p.sweep_channel, start: p.start_v, stop: p.stop_v, points: p.points,
+                        delay: p.delay, sweep_type: p.sweep_type, direction: p.direction,
+                        keep_output_on: isLast ? p.keep_output_on : false
+                    },
+                    capture_as: `${mode}_iv_data`
+                });
+                loopSteps.push({
+                    action: 'data/save',
+                    params: { data: `$${mode}_iv_data`, filename: `${p.sample_name}_{$pixel}${mode.toUpperCase()}` }
+                });
+
+                return {
+                    action: 'control/loop',
+                    params: { variable: 'pixel', sequence: pixels },
+                    steps: loopSteps
+                };
+            };
+
+            const blockDark = [
+                { action: 'smu/output', params: { channel: p.light_channel, enabled: false } }
+            ];
+
+            const blockLight = [
+                { action: 'smu/set', params: { channel: p.light_channel, value: p.light_current } },
+                { action: 'smu/output', params: { channel: p.light_channel, enabled: true } },
+                { action: 'wait', params: { seconds: 2.0 } }
+            ];
+
+            const steps = [
+                { action: 'smu/connect', params: { channel: 1, mock: false } },
+                { action: 'smu/connect', params: { channel: 2, mock: false } },
+                { action: 'relays/connect', params: { mock: true } },
+                { action: 'relays/all-off' }
+            ];
+
+            if (darkFirst) {
+                steps.push(...blockDark, makeLoopStep(false, false), ...blockLight, makeLoopStep(true, true));
+            } else {
+                steps.push(...blockLight, makeLoopStep(true, false), ...blockDark, makeLoopStep(false, true));
+            }
+
+            steps.push(
+                { action: 'smu/output', params: { channel: p.sweep_channel, enabled: false } },
+                { action: 'smu/output', params: { channel: p.light_channel, enabled: false } },
+                { action: 'relays/all-off' }
+            );
 
             return {
-                name: `${p.sample_name}_${order}`,
-                description: `${order === 'dark_first' ? 'Dark→Light' : 'Light→Dark'} batch sweep`,
-                steps: [
-                    { action: 'smu/connect', params: { channel: p.sweep_channel, mock: true } },
-                    { action: 'smu/connect', params: { channel: p.light_channel, mock: true } },
-                    { action: 'relays/connect', params: { mock: true } },
-                    {
-                        action: 'smu/configure', params: {
-                            channel: p.sweep_channel,
-                            nplc: p.nplc,
-                            compliance: p.compliance
-                        }
-                    },
-                    {
-                        action: 'smu/configure', params: {
-                            channel: p.light_channel,
-                            nplc: 1,
-                            compliance: 10,
-                            mode: 'CURR'
-                        }
-                    },
-                    loop1,
-                    loop2,
-                    { action: 'smu/output', params: { channel: p.sweep_channel, enabled: false } },
-                    { action: 'smu/output', params: { channel: p.light_channel, enabled: false } }
-                ]
+                name: `${darkFirst ? 'Dark-Light' : 'Light-Dark'}_${p.sample_name}`,
+                description: `Batch sweep on pixels ${p.pixel_str}. ${order}.`,
+                version: 2.0,
+                steps: steps
             };
-        }
-
-        // Save protocol
-        function saveProtocol() {
-            if (!generatedYaml) {
-                alert('Generate a protocol first');
-                return;
-            }
-            document.getElementById('protocolName').value = generatedYaml.name || 'New Protocol';
-            const user = UI2.getCurrentUser();
-            document.getElementById('userFolderDisplay').textContent = user || 'Custom';
-            document.getElementById('saveDialog').style.display = 'block';
         }
 
         async function confirmSave() {
-            const name = document.getElementById('protocolName').value;
-            const user = UI2.getCurrentUser() || 'Custom';
+            const filename = document.getElementById('finalFilename').value;
+            const user = UI2.getCurrentUser();
 
-            const result = await UI2.saveProtocol(name, generatedYaml, user);
-
-            if (result.success || result.success !== false) {
-                alert(`Saved: ${user}/${name}.yaml`);
-                document.getElementById('saveDialog').style.display = 'none';
-            } else {
-                alert(`Save failed: ${result.message}`);
-            }
-        }
-
-        function cancelSave() {
-            document.getElementById('saveDialog').style.display = 'none';
-        }
-
-        // Run directly
-        async function runDirect() {
-            if (!generatedYaml) {
-                alert('Generate a protocol first');
+            if (!filename) {
+                alert("Please enter a filename");
                 return;
             }
 
-            const result = await UI2.runInlineProtocol(generatedYaml);
+            const result = await UI2.saveProtocol(filename, generatedYaml, user);
             if (result.success !== false) {
-                alert('Protocol started! Switch to Protocol Runner to monitor.');
+                Utils.showToast(`Saved to ${user}/${filename}.yaml`, 'success');
             } else {
-                alert(`Failed: ${result.message}`);
+                alert("Save failed: " + result.message);
             }
+        }
+
+
+
+        function copyYaml() {
+            navigator.clipboard.writeText(JSON.stringify(generatedYaml, null, 2));
+            Utils.showToast("Copied to clipboard!", 'info');
         }
     </script>
 </body>

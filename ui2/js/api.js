@@ -90,7 +90,8 @@ async function runProtocol(protocolId, overrides = {}) {
  * @param {object} yamlContent - Protocol YAML as object
  */
 async function runInlineProtocol(yamlContent) {
-    return await api('POST', '/protocol/run-inline', { protocol: yamlContent });
+    // yamlContent should have 'steps' and 'name'
+    return await api('POST', '/protocol/run-inline', yamlContent);
 }
 
 /**
@@ -109,10 +110,31 @@ async function getProtocolContent(protocolId) {
 }
 
 /**
- * Get run status
+ * Get system status (hardware focus)
  */
-async function getRunStatus() {
+async function getSystemStatus() {
     return await api('GET', '/status');
+}
+
+/**
+ * Get protocol execution status
+ */
+async function getProtocolStatus() {
+    return await api('GET', '/protocol/status');
+}
+
+/**
+ * Get protocol event history
+ */
+async function getProtocolHistory(limit = null) {
+    return await api('GET', '/protocol/history', limit ? { limit } : null);
+}
+
+/**
+ * Abort running protocol
+ */
+async function abortProtocol() {
+    return await api('POST', '/protocol/abort');
 }
 
 /**
@@ -136,6 +158,15 @@ async function createUser(name) {
     return await api('POST', '/protocol/create-user', { name });
 }
 
+async function getCalibrationFiles() {
+    const res = await api('GET', '/protocol/calibration-files');
+    return res.files || [];
+}
+
+async function getCalibrationData(filename) {
+    return await api('GET', `/protocol/calibration-data/${encodeURIComponent(filename)}`);
+}
+
 // Export for use in pages
 window.UI2 = {
     api,
@@ -154,9 +185,14 @@ window.UI2 = {
         const targetFolder = folder || user || 'Custom';
         return api('POST', '/protocol/save', { name, content, folder: targetFolder });
     },
-    getRunStatus,
+    getSystemStatus,
+    getProtocolStatus,
+    getProtocolHistory,
+    abortProtocol,
     getCurrentUser,
     setCurrentUser,
     getUsers,
-    createUser
+    createUser,
+    getCalibrationFiles,
+    getCalibrationData
 };

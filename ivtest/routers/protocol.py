@@ -116,6 +116,68 @@ async def create_user(request: CreateUserRequest):
         return {"success": False, "message": str(e)}
 
 
+@router.get("/calibration-files")
+async def list_calibration_files():
+    """List available calibration files (cal*.txt) in root."""
+    from pathlib import Path
+    root = Path(".").resolve()
+    files = list(root.glob("cal*.txt"))
+    return {"files": [f.name for f in files]}
+
+
+@router.get("/calibration-data/{filename}")
+async def get_calibration_data(filename: str):
+    """Get content of a calibration file."""
+    from pathlib import Path
+    import numpy as np
+    
+    # Security: basic check
+    if not filename.startswith("cal") or not filename.endswith(".txt"):
+        return {"success": False, "message": "Invalid filename"}
+        
+    path = Path(".").resolve() / filename
+    if not path.exists():
+        return {"success": False, "message": "File not found"}
+        
+    try:
+        # Try new format first: 3 columns with header (LED_Current, PD_Current, Irradiance)
+        try:
+            data = np.loadtxt(path, delimiter='\t', skiprows=1)
+            if data.ndim == 2 and data.shape[1] >= 3:
+                return {
+                    "success": True,
+                    "format": "3-column",
+                    "currents": data[:, 0].tolist(),
+                    "voltages": data[:, 1].tolist(),
+                    "irradiances": data[:, 2].tolist()
+                }
+        except:
+            pass
+
+        # Fall back to old format: 2 columns, no header (Current, Irradiance)
+        data = np.loadtxt(path, delimiter='\t', skiprows=0)
+        if data.ndim == 2 and data.shape[1] >= 2:
+            return {
+                "success": True,
+                "format": "2-column",
+                "currents": data[:, 0].tolist(),
+                "irradiances": data[:, 1].tolist()
+            }
+        elif data.ndim == 1: # Single row calibration maybe?
+             return {
+                "success": True,
+                "format": "single-row",
+                "currents": [data[0]],
+                "irradiances": [data[1]]
+            }
+            
+        return {"success": False, "message": "Unsupported file format"}
+
+    except Exception as e:
+        logger.error(f"Failed to load calibration data {filename}: {e}")
+        return {"success": False, "message": str(e)}
+
+
 @router.post("/run", response_model=ProtocolResponse)
 async def run_protocol(request: RunProtocolRequest, background_tasks: BackgroundTasks):
     """
