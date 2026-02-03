@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Light Calibration - UI2</title>
+    <link rel="stylesheet" href="css/theme.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <style>
+        .responsivity-info {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 0.75rem;
+            text-align: center;
+        }
+
+        .responsivity-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+        }
+
+        .cal-result {
+            padding: 1rem;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .cal-result.dark {
+            background: linear-gradient(135deg, #1a1a2e, #0f0f1a);
+            border: 1px solid var(--border-color);
+        }
+
+        .cal-result .label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .cal-result .value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="page-header">
+            <h1 class="page-title">💡 Light Source Calibration</h1>
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="led" id="backendLed"></div>
+                    <span>Backend</span>
+                </div>
+                <div class="status-item">
+                    <div class="led" id="calLed"></div>
+                    <span id="calStatus">Ready</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-sidebar">
+            <!-- Left: Configuration -->
+            <div>
+                <!-- Output Settings -->
+                <div class="panel">
+                    <div class="panel-title">📁 Calibration Output</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Calibration Name</label>
+                            <input type="text" id="calibrationName" value="calBlue" placeholder="e.g. calBlue">
+                        </div>
+                        <div class="form-group">
+                            <label>Output File</label>
+                            <div class="text-small text-muted mt-1" id="outputPath">calBlue.txt</div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="mockMode" checked>
+                            Mock Mode (no hardware)
+                        </label>
+                    </div>
+                </div>
+
+                <!-- LED Sweep Settings -->
+                <div class="panel">
+                    <div class="panel-title">🔦 LED Sweep Range</div>
+                    <div class="form-row-3">
+                        <div class="form-group">
+                            <label>Start Current (A)</label>
+                            <input type="number" id="ledStart" value="0.0001" step="0.0001" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Stop Current (A)</label>
+                            <input type="number" id="ledStop" value="0.100" step="0.001">
+                        </div>
+                        <div class="form-group">
+                            <label>Number of Points</label>
+                            <input type="number" id="numPoints" value="20" min="2" max="100">
+                        </div>
+                    </div>
+                    <div class="alert alert-info mt-1">
+                        Will measure <span id="totalPoints">21</span> points (including dark at 0A)
+                    </div>
+                </div>
+
+                <!-- Measurement Settings -->
+                <div class="panel">
+                    <div class="panel-title">⚙️ Measurement Settings</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Delay per Point (s)</label>
+                            <input type="number" id="delay" value="1.0" step="0.1" min="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label>NPLC</label>
+                            <input type="number" id="nplc" value="4.0" step="0.5" min="0.01">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>PD Bias Voltage (V)</label>
+                            <input type="number" id="pdBias" value="0" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label>LED Compliance (V)</label>
+                            <input type="number" id="ledCompliance" value="5.0" step="0.5">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>PD Compliance (A)</label>
+                            <input type="number" id="pdCompliance" value="0.01" step="0.001">
+                        </div>
+                        <div class="form-group">
+                            <label>PD Active Area (cm²)</label>
+                            <input type="number" id="pdArea" value="0.01" step="0.001">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Si Photodiode Settings -->
+                <div class="panel">
+                    <div class="panel-title">📊 Si Reference Photodiode</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>LED Wavelength (nm)</label>
+                            <select id="ledWavelength">
+                                <option value="470" selected>Blue (470nm)</option>
+                                <option value="525">Green (525nm)</option>
+                                <option value="625">Red (625nm)</option>
+                                <option value="850">IR (850nm)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Responsivity (A/W)</label>
+                            <input type="number" id="responsivity" value="0.27" step="0.01" readonly>
+                        </div>
+                    </div>
+                    <div class="responsivity-info mt-1">
+                        <div class="text-small text-muted">Si Responsivity at selected wavelength</div>
+                        <div class="responsivity-value" id="responsivityDisplay">0.27 A/W</div>
+                    </div>
+                </div>
+
+                <!-- Run Button -->
+                <div class="panel">
+                    <button class="btn btn-success" id="btnRun" onclick="runCalibration()">
+                        ▶️ Start Calibration
+                    </button>
+                    <button class="btn btn-danger hidden" id="btnStop" onclick="stopCalibration()">
+                        ⏹️ Stop
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right: Results -->
+            <div>
+                <!-- Progress -->
+                <div class="panel" id="progressPanel" style="display: none;">
+                    <div class="panel-title">⏳ Calibration Progress</div>
+                    <div class="progress-bar mb-2">
+                        <div class="fill" id="progressFill" style="width: 0%"></div>
+                    </div>
+                    <div class="text-center" id="progressText">0 / 21 points</div>
+                </div>
+
+                <!-- Dark Current -->
+                <div class="panel" id="darkPanel" style="display: none;">
+                    <div class="cal-result dark">
+                        <div class="label">Dark Current (0A LED)</div>
+                        <div class="value" id="darkCurrent">--</div>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div class="panel">
+                    <div class="panel-title">📈 Calibration Curve</div>
+                    <div class="chart-container" style="height: 350px;">
+                        <canvas id="calChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Data Table -->
+                <div class="panel" id="dataPanel" style="display: none;">
+                    <div class="panel-title">📋 Calibration Data</div>
+                    <div style="max-height: 200px; overflow-y: auto;">
+                        <table class="data-table" id="dataTable">
+                            <thead>
+                                <tr>
+                                    <th>LED Current (A)</th>
+                                    <th>PD Current (A)</th>
+                                    <th>Irradiance (W/cm²)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dataTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Save -->
+                <div class="panel" id="savePanel" style="display: none;">
+                    <div class="panel-title">💾 Save Calibration</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Filename</label>
+                            <input type="text" id="saveFilename" value="calBlue">
+                        </div>
+                        <div>
+                            <button class="btn btn-success" onclick="saveCalibration()">💾 Save</button>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline mt-1" onclick="exportCSV()">📥 Export CSV</button>
+                </div>
+
+                <!-- Log -->
+                <div class="panel">
+                    <div class="panel-title">📋 Log</div>
+                    <div class="log-box" id="logBox"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Si Responsivity lookup table (wavelength -> A/W)
+        const SI_RESPONSIVITY = {
+            400: 0.19, 450: 0.24, 470: 0.27, 500: 0.30, 525: 0.32,
+            550: 0.34, 600: 0.40, 625: 0.42, 650: 0.44, 700: 0.48,
+            750: 0.50, 800: 0.52, 850: 0.53, 900: 0.50, 950: 0.40
+        };
+
+        // State
+        let calChart = null;
+        let calData = [];
+        let isRunning = false;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            initChart();
+            await checkConnection();
+            updateResponsivity();
+            updatePointCount();
+
+            // Event listeners
+            document.getElementById('calibrationName').addEventListener('input', updateOutputPath);
+            document.getElementById('ledWavelength').addEventListener('change', updateResponsivity);
+            document.getElementById('numPoints').addEventListener('input', updatePointCount);
+
+            Utils.log('logBox', 'Light Calibration initialized');
+        });
+
+        async function checkConnection() {
+            const connected = await UI2.checkBackendConnection();
+            document.getElementById('backendLed').classList.toggle('ok', connected);
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('calChart').getContext('2d');
+            calChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Irradiance vs LED Current',
+                        data: [],
+                        borderColor: '#00d4ff',
+                        backgroundColor: '#00d4ff40',
+                        pointRadius: 5,
+                        showLine: true,
+                        tension: 0.2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'logarithmic',
+                            title: { display: true, text: 'LED Current (A)', color: '#888' },
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
+                        y: {
+                            type: 'logarithmic',
+                            title: { display: true, text: 'Irradiance (W/cm²)', color: '#888' },
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        function updateOutputPath() {
+            const name = document.getElementById('calibrationName').value;
+            document.getElementById('outputPath').textContent = `${name}.txt`;
+            document.getElementById('saveFilename').value = name;
+        }
+
+        function updateResponsivity() {
+            const wavelength = parseInt(document.getElementById('ledWavelength').value);
+            const responsivity = SI_RESPONSIVITY[wavelength] || 0.30;
+            document.getElementById('responsivity').value = responsivity;
+            document.getElementById('responsivityDisplay').textContent = `${responsivity} A/W`;
+        }
+
+        function updatePointCount() {
+            const points = parseInt(document.getElementById('numPoints').value) || 20;
+            document.getElementById('totalPoints').textContent = points + 1;
+        }
+
+        // Run calibration
+        async function runCalibration() {
+            isRunning = true;
+            calData = [];
+
+            // Update UI
+            document.getElementById('btnRun').classList.add('hidden');
+            document.getElementById('btnStop').classList.remove('hidden');
+            document.getElementById('progressPanel').style.display = 'block';
+            document.getElementById('calLed').classList.add('running');
+            document.getElementById('calStatus').textContent = 'Running...';
+
+            Utils.log('logBox', 'Starting calibration...');
+
+            // Get parameters
+            const params = {
+                calibration_name: document.getElementById('calibrationName').value,
+                led_start: parseFloat(document.getElementById('ledStart').value),
+                led_stop: parseFloat(document.getElementById('ledStop').value),
+                num_points: parseInt(document.getElementById('numPoints').value),
+                delay: parseFloat(document.getElementById('delay').value),
+                nplc: parseFloat(document.getElementById('nplc').value),
+                pd_bias: parseFloat(document.getElementById('pdBias').value),
+                led_compliance: parseFloat(document.getElementById('ledCompliance').value),
+                pd_compliance: parseFloat(document.getElementById('pdCompliance').value),
+                responsivity: parseFloat(document.getElementById('responsivity').value),
+                pd_area_cm2: parseFloat(document.getElementById('pdArea').value),
+                mock: document.getElementById('mockMode').checked
+            };
+
+            Utils.log('logBox', `Params: ${JSON.stringify(params)}`);
+
+            try {
+                const result = await UI2.api('POST', '/calibration/run', params);
+
+                if (result && result.success) {
+                    calData = result.points || [];
+                    const darkCurrent = result.dark_current || 0;
+
+                    // Show dark current
+                    document.getElementById('darkPanel').style.display = 'block';
+                    document.getElementById('darkCurrent').textContent = Utils.formatCurrent(darkCurrent);
+
+                    // Update chart
+                    updateChart();
+
+                    // Show data table
+                    updateDataTable();
+
+                    // Show save panel
+                    document.getElementById('savePanel').style.display = 'block';
+
+                    Utils.log('logBox', `Calibration complete! ${calData.length} points`, 'success');
+                } else {
+                    Utils.log('logBox', `Calibration failed: ${result?.error || result?.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                Utils.log('logBox', `Error: ${error.message}`, 'error');
+            }
+
+            resetRunState();
+        }
+
+        function stopCalibration() {
+            isRunning = false;
+            Utils.log('logBox', 'Calibration stopped', 'warning');
+            resetRunState();
+        }
+
+        function resetRunState() {
+            isRunning = false;
+            document.getElementById('btnRun').classList.remove('hidden');
+            document.getElementById('btnStop').classList.add('hidden');
+            document.getElementById('calLed').classList.remove('running');
+            document.getElementById('calStatus').textContent = 'Ready';
+        }
+
+        function updateChart() {
+            const chartData = calData
+                .filter(p => p.led_current > 0 && p.irradiance > 0)
+                .map(p => ({ x: p.led_current, y: p.irradiance }));
+
+            calChart.data.datasets[0].data = chartData;
+            calChart.update();
+        }
+
+        function updateDataTable() {
+            document.getElementById('dataPanel').style.display = 'block';
+
+            let html = '';
+            for (const p of calData) {
+                html += `
+                    <tr>
+                        <td>${p.led_current.toExponential(4)}</td>
+                        <td>${p.pd_current.toExponential(4)}</td>
+                        <td>${p.irradiance.toExponential(4)}</td>
+                    </tr>
+                `;
+            }
+            document.getElementById('dataTableBody').innerHTML = html;
+
+            // Update progress
+            const total = parseInt(document.getElementById('numPoints').value) + 1;
+            document.getElementById('progressFill').style.width = '100%';
+            document.getElementById('progressText').textContent = `${calData.length} / ${total} points`;
+        }
+
+        // Save calibration
+        async function saveCalibration() {
+            const filename = document.getElementById('saveFilename').value;
+
+            Utils.log('logBox', `Saving as ${filename}.txt...`);
+
+            // Format data for saving
+            const content = calData.map(p =>
+                `${p.led_current}\t${p.pd_current}\t${p.irradiance}`
+            ).join('\n');
+
+            const result = await UI2.api('POST', '/calibration/save', {
+                filename: filename,
+                data: calData
+            });
+
+            if (result.success !== false) {
+                Utils.log('logBox', `Saved to ${filename}.txt`, 'success');
+            } else {
+                Utils.log('logBox', `Save failed: ${result.message}`, 'error');
+            }
+        }
+
+        // Export CSV
+        function exportCSV() {
+            if (calData.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            Utils.downloadCSV(calData, 'calibration.csv', ['led_current', 'pd_current', 'irradiance']);
+            Utils.log('logBox', 'CSV exported', 'success');
+        }
+    </script>
+</body>
+
+</html>

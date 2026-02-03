@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMU Control - UI2</title>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-panel: #1a1a24;
+            --border-color: #2a2a3a;
+            --text-primary: #ffffff;
+            --text-secondary: #888899;
+            --accent-cyan: #00d4ff;
+            --accent-green: #00ff66;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+        }
+
+        .sidebar {
+            width: 240px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 2rem;
+            padding: 0.5rem 0;
+        }
+
+        .nav-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .nav-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-link {
+            display: block;
+            padding: 0.6rem 0.75rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: 6px;
+            margin-bottom: 0.25rem;
+            transition: all 0.2s;
+        }
+
+        .nav-link:hover {
+            background: var(--bg-panel);
+            color: var(--text-primary);
+        }
+
+        .nav-link.active {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(0, 255, 102, 0.15));
+            color: var(--accent-cyan);
+            border-left: 3px solid var(--accent-cyan);
+        }
+
+        .nav-link .icon {
+            margin-right: 0.5rem;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            height: 50px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1.5rem;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.8rem;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .led {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #444;
+        }
+
+        .led.ok {
+            background: var(--accent-green);
+        }
+
+        .led.error {
+            background: #ff4444;
+        }
+
+        .page-frame {
+            flex: 1;
+            border: none;
+        }
+
+        .footer {
+            height: 30px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="sidebar">
+        <div class="logo">⚡ SMU Control</div>
+
+        <div class="nav-section">
+            <div class="nav-title">Operations</div>
+            <a href="live_hud.html" class="nav-link" target="pageFrame">
+                <span class="icon">📊</span> Live HUD
+            </a>
+            <a href="protocol_runner.html" class="nav-link" target="pageFrame">
+                <span class="icon">▶️</span> Protocol Runner
+            </a>
+            <a href="experiment_wizard.html" class="nav-link" target="pageFrame">
+                <span class="icon">🧙‍♂️</span> Experiment Wizard
+            </a>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-title">Configuration</div>
+            <a href="protocol_builder.html" class="nav-link" target="pageFrame">
+                <span class="icon">🏗️</span> Protocol Builder
+            </a>
+            <a href="light_calibration.html" class="nav-link" target="pageFrame">
+                <span class="icon">💡</span> Light Calibration
+            </a>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-title">Analysis</div>
+            <a href="data_viewer.html" class="nav-link" target="pageFrame">
+                <span class="icon">📂</span> Data Viewer
+            </a>
+        </div>
+
+        <div style="flex:1"></div>
+
+        <div class="nav-section">
+            <div class="nav-title">System</div>
+            <a href="relay_test.html" class="nav-link" target="pageFrame">
+                <span class="icon">🔌</span> Relay Test
+            </a>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <span id="pageTitle">Live HUD</span>
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="led" id="backendLed"></div>
+                    <span>Backend</span>
+                </div>
+                <div class="status-item">
+                    <div class="led" id="smuLed"></div>
+                    <span>SMU</span>
+                </div>
+                <div class="status-item">
+                    <div class="led" id="relayLed"></div>
+                    <span>Relays</span>
+                </div>
+            </div>
+        </div>
+
+        <iframe name="pageFrame" class="page-frame" src="live_hud.html"></iframe>
+
+        <div class="footer">
+            SMU Control UI2 v0.1 | Python Backend + HTML/JS Frontend
+        </div>
+    </div>
+
+    <script>
+        const BACKEND_URL = 'http://localhost:5000';
+
+        // Check backend status
+        async function checkStatus() {
+            try {
+                const resp = await fetch(`${BACKEND_URL}/status`);
+                const data = await resp.json();
+
+                document.getElementById('backendLed').classList.add('ok');
+
+                if (data.smu && data.smu.connected) {
+                    document.getElementById('smuLed').classList.add('ok');
+                }
+                if (data.relays && data.relays.connected) {
+                    document.getElementById('relayLed').classList.add('ok');
+                }
+            } catch (e) {
+                document.getElementById('backendLed').classList.add('error');
+            }
+        }
+
+        // Highlight active nav
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', function () {
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                this.classList.add('active');
+                document.getElementById('pageTitle').textContent = this.textContent.trim();
+            });
+        });
+
+        // Initial state
+        document.querySelector('.nav-link').classList.add('active');
+        checkStatus();
+        setInterval(checkStatus, 5000);
+    </script>
+</body>
+
+</html>

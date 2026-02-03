@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relay Test - UI2</title>
+    <link rel="stylesheet" href="css/theme.css">
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <style>
+        .relay-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .relay-btn {
+            padding: 1rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .relay-btn.on {
+            background: linear-gradient(135deg, #00aa44, #00cc55);
+            color: white;
+        }
+
+        .relay-btn.on:hover {
+            box-shadow: 0 0 15px rgba(0, 255, 100, 0.4);
+        }
+
+        .relay-btn.off {
+            background: linear-gradient(135deg, #cc3333, #ff4444);
+            color: white;
+        }
+
+        .relay-btn.off:hover {
+            box-shadow: 0 0 15px rgba(255, 68, 68, 0.4);
+        }
+
+        .relay-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .pixel-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 0.5rem;
+        }
+
+        .pixel-btn {
+            padding: 0.75rem;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .pixel-btn:hover {
+            border-color: var(--accent-cyan);
+        }
+
+        .pixel-btn.active {
+            border-color: var(--accent-green);
+            background: rgba(0, 255, 102, 0.15);
+            box-shadow: 0 0 10px rgba(0, 255, 102, 0.3);
+        }
+
+        .pixel-btn:disabled {
+            opacity: 0.3;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="page-header">
+            <h1 class="page-title">🔌 Relay Test</h1>
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="led" id="backendLed"></div>
+                    <span>Backend</span>
+                </div>
+                <div class="status-item">
+                    <div class="led" id="pixelLed"></div>
+                    <span>Pixel</span>
+                </div>
+                <div class="status-item">
+                    <div class="led" id="rgbLed"></div>
+                    <span>RGB</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <!-- Left Column -->
+            <div>
+                <!-- Connection Panel -->
+                <div class="panel">
+                    <div class="panel-title">🔗 Arduino Connections</div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="mockMode" checked>
+                            Mock Mode (no hardware)
+                        </label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Pixel Arduino Port</label>
+                            <input type="text" id="pixelPort" value="COM38">
+                        </div>
+                        <div class="form-group">
+                            <label>RGB Arduino Port</label>
+                            <input type="text" id="rgbPort" value="COM39">
+                        </div>
+                    </div>
+
+                    <div class="btn-row-3">
+                        <button class="btn btn-primary" onclick="connectPixel()">Connect Pixel</button>
+                        <button class="btn btn-primary" onclick="connectRGB()">Connect RGB</button>
+                        <button class="btn btn-danger" onclick="disconnectAll()">Disconnect All</button>
+                    </div>
+
+                    <button class="btn btn-outline mt-2" onclick="refreshStatus()">🔄 Refresh Status</button>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="panel">
+                    <div class="panel-title">⚡ Quick Actions</div>
+                    <div class="btn-row">
+                        <button class="btn btn-danger" onclick="safeDisconnect()">🛑 Safe Disconnect All</button>
+                        <button class="btn btn-warning" onclick="allRelaysOff()">⚫ All Relays OFF</button>
+                    </div>
+                </div>
+
+                <!-- Log -->
+                <div class="panel">
+                    <div class="panel-title">📋 Response Log</div>
+                    <div class="log-box" id="logBox"></div>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div>
+                <!-- Pixel Select (Quick) -->
+                <div class="panel">
+                    <div class="panel-title">📍 Quick Pixel Select</div>
+                    <p class="text-small text-muted mb-2">Click to select pixel (automatically handles relay switching)
+                    </p>
+                    <div class="pixel-grid" id="pixelGrid">
+                        <!-- Generated by JS -->
+                    </div>
+                    <div class="mt-2">
+                        <span class="text-muted">Current Pixel: </span>
+                        <span id="currentPixel" class="badge badge-info">None</span>
+                    </div>
+                </div>
+
+                <!-- Pixel Board Relays -->
+                <div class="panel">
+                    <div class="panel-title">🔲 Pixel Board Relays (1-6)</div>
+                    <p class="text-small text-muted mb-2">Direct relay control for Pixel Arduino (COM38)</p>
+                    <div class="relay-grid" id="pixelRelays">
+                        <!-- Generated by JS -->
+                    </div>
+                </div>
+
+                <!-- RGB Board Relays -->
+                <div class="panel">
+                    <div class="panel-title">🌈 RGB/LED Board Relays (1-8)</div>
+                    <p class="text-small text-muted mb-2">Direct relay control for RGB Arduino (COM39)</p>
+                    <div class="relay-grid" id="rgbRelays">
+                        <!-- Generated by JS -->
+                    </div>
+                </div>
+
+                <!-- LED Control -->
+                <div class="panel">
+                    <div class="panel-title">💡 LED Control</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>LED Wavelength</label>
+                            <select id="ledWavelength">
+                                <option value="red">Red (625nm)</option>
+                                <option value="green">Green (525nm)</option>
+                                <option value="blue" selected>Blue (470nm)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Intensity</label>
+                            <select id="ledIntensity">
+                                <option value="off">OFF</option>
+                                <option value="low">Low</option>
+                                <option value="high" selected>High</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-success" onclick="setLED()">💡 Apply LED Settings</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let pixelConnected = false;
+        let rgbConnected = false;
+        let currentPixel = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkConnection();
+            renderRelayButtons();
+            renderPixelButtons();
+            Utils.log('logBox', 'Relay Test initialized');
+        });
+
+        async function checkConnection() {
+            const connected = await UI2.checkBackendConnection();
+            document.getElementById('backendLed').classList.toggle('ok', connected);
+            if (connected) await refreshStatus();
+        }
+
+        // Render relay buttons
+        function renderRelayButtons() {
+            // Pixel relays (1-6)
+            let pixelHtml = '';
+            for (let i = 1; i <= 6; i++) {
+                pixelHtml += `
+                    <button class="relay-btn on" onclick="setRelay('pixel', ${i}, true)" 
+                            id="pixelRelay${i}On" ${!pixelConnected ? 'disabled' : ''}>
+                        R${i} ON
+                    </button>
+                    <button class="relay-btn off" onclick="setRelay('pixel', ${i}, false)"
+                            id="pixelRelay${i}Off" ${!pixelConnected ? 'disabled' : ''}>
+                        R${i} OFF
+                    </button>
+                `;
+            }
+            document.getElementById('pixelRelays').innerHTML = pixelHtml;
+
+            // RGB relays (1-8)
+            let rgbHtml = '';
+            for (let i = 1; i <= 8; i++) {
+                rgbHtml += `
+                    <button class="relay-btn on" onclick="setRelay('rgb', ${i}, true)"
+                            id="rgbRelay${i}On" ${!rgbConnected ? 'disabled' : ''}>
+                        R${i} ON
+                    </button>
+                    <button class="relay-btn off" onclick="setRelay('rgb', ${i}, false)"
+                            id="rgbRelay${i}Off" ${!rgbConnected ? 'disabled' : ''}>
+                        R${i} OFF
+                    </button>
+                `;
+            }
+            document.getElementById('rgbRelays').innerHTML = rgbHtml;
+        }
+
+        // Render pixel buttons
+        function renderPixelButtons() {
+            let html = '';
+            for (let i = 1; i <= 8; i++) {
+                html += `
+                    <button class="pixel-btn" id="pixelBtn${i}" onclick="selectPixel(${i})"
+                            ${!pixelConnected ? 'disabled' : ''}>
+                        P${i}
+                    </button>
+                `;
+            }
+            document.getElementById('pixelGrid').innerHTML = html;
+        }
+
+        // Connect Pixel Arduino
+        async function connectPixel() {
+            const mockMode = document.getElementById('mockMode').checked;
+            const port = document.getElementById('pixelPort').value;
+
+            Utils.log('logBox', `Connecting Pixel Arduino (${port}, mock=${mockMode})...`);
+
+            const result = await UI2.api('POST', '/relays/connect', {
+                mock: mockMode,
+                pixel_port: port
+            });
+
+            if (result.success !== false) {
+                pixelConnected = true;
+                document.getElementById('pixelLed').classList.add('ok');
+                Utils.log('logBox', 'Pixel Arduino connected', 'success');
+            } else {
+                Utils.log('logBox', `Pixel connect failed: ${result.message}`, 'error');
+            }
+            renderRelayButtons();
+            renderPixelButtons();
+        }
+
+        // Connect RGB Arduino
+        async function connectRGB() {
+            const mockMode = document.getElementById('mockMode').checked;
+            const port = document.getElementById('rgbPort').value;
+
+            Utils.log('logBox', `Connecting RGB Arduino (${port}, mock=${mockMode})...`);
+
+            const result = await UI2.api('POST', '/relays/connect', {
+                mock: mockMode,
+                rgb_port: port
+            });
+
+            if (result.success !== false) {
+                rgbConnected = true;
+                document.getElementById('rgbLed').classList.add('ok');
+                Utils.log('logBox', 'RGB Arduino connected', 'success');
+            } else {
+                Utils.log('logBox', `RGB connect failed: ${result.message}`, 'error');
+            }
+            renderRelayButtons();
+        }
+
+        // Disconnect all
+        async function disconnectAll() {
+            Utils.log('logBox', 'Disconnecting...');
+            await UI2.api('POST', '/relays/disconnect');
+            pixelConnected = false;
+            rgbConnected = false;
+            document.getElementById('pixelLed').classList.remove('ok');
+            document.getElementById('rgbLed').classList.remove('ok');
+            Utils.log('logBox', 'Disconnected', 'success');
+            renderRelayButtons();
+            renderPixelButtons();
+        }
+
+        // Safe disconnect
+        async function safeDisconnect() {
+            Utils.log('logBox', 'Safe disconnect...');
+            const result = await UI2.api('POST', '/relays/safe-disconnect');
+            Utils.log('logBox', result.message || 'Safe disconnect complete', 'success');
+        }
+
+        // All relays off
+        async function allRelaysOff() {
+            Utils.log('logBox', 'Turning all relays OFF...');
+            // Turn off all pixel relays
+            for (let i = 1; i <= 6; i++) {
+                await UI2.api('POST', '/relays/set', { board: 'pixel', relay: i, state: false });
+            }
+            // Turn off all RGB relays
+            for (let i = 1; i <= 8; i++) {
+                await UI2.api('POST', '/relays/set', { board: 'rgb', relay: i, state: false });
+            }
+            Utils.log('logBox', 'All relays OFF', 'success');
+        }
+
+        // Set relay
+        async function setRelay(board, relay, state) {
+            Utils.log('logBox', `Setting ${board} R${relay} ${state ? 'ON' : 'OFF'}...`);
+            const result = await UI2.api('POST', '/relays/set', { board, relay, state });
+            if (result.success !== false) {
+                Utils.log('logBox', `${board} R${relay} → ${state ? 'ON' : 'OFF'}`, 'success');
+            } else {
+                Utils.log('logBox', `Failed: ${result.message}`, 'error');
+            }
+        }
+
+        // Select pixel
+        async function selectPixel(pixel) {
+            Utils.log('logBox', `Selecting pixel ${pixel}...`);
+            const result = await UI2.api('POST', '/relays/pixel', { pixel_id: pixel });
+
+            if (result.success !== false) {
+                currentPixel = pixel;
+                document.getElementById('currentPixel').textContent = `P${pixel}`;
+
+                // Update button states
+                document.querySelectorAll('.pixel-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                document.getElementById(`pixelBtn${pixel}`).classList.add('active');
+
+                Utils.log('logBox', `Pixel ${pixel} selected`, 'success');
+            } else {
+                Utils.log('logBox', `Failed: ${result.message}`, 'error');
+            }
+        }
+
+        // Set LED
+        async function setLED() {
+            const wavelength = document.getElementById('ledWavelength').value;
+            const intensity = document.getElementById('ledIntensity').value;
+
+            Utils.log('logBox', `Setting LED: ${wavelength} ${intensity}...`);
+            const result = await UI2.api('POST', '/relays/led', {
+                wavelength,
+                intensity
+            });
+
+            if (result.success !== false) {
+                Utils.log('logBox', `LED: ${wavelength} ${intensity}`, 'success');
+            } else {
+                Utils.log('logBox', `Failed: ${result.message}`, 'error');
+            }
+        }
+
+        // Refresh status
+        async function refreshStatus() {
+            const result = await UI2.api('GET', '/relays/status');
+            if (result) {
+                pixelConnected = result.pixel_connected || false;
+                rgbConnected = result.rgb_connected || false;
+
+                document.getElementById('pixelLed').classList.toggle('ok', pixelConnected);
+                document.getElementById('rgbLed').classList.toggle('ok', rgbConnected);
+
+                Utils.log('logBox', `Status: Pixel=${pixelConnected}, RGB=${rgbConnected}`);
+                renderRelayButtons();
+                renderPixelButtons();
+            }
+        }
+    </script>
+</body>
+
+</html>

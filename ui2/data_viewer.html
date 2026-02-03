@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Viewer - UI2</title>
+    <link rel="stylesheet" href="css/theme.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <style>
+        .file-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-bottom: 0.25rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+        }
+
+        .file-item:hover {
+            border-color: var(--accent-cyan);
+            background: rgba(0, 212, 255, 0.05);
+        }
+
+        .file-item.selected {
+            border-color: var(--accent-green);
+            background: rgba(0, 255, 102, 0.1);
+        }
+
+        .file-item .name {
+            flex: 1;
+        }
+
+        .file-item .size {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        .file-item .checkbox {
+            margin-right: 0.5rem;
+        }
+
+        .folder-item {
+            padding: 0.5rem 0.75rem;
+            font-weight: 600;
+            color: var(--accent-cyan);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .folder-item:hover {
+            background: rgba(0, 212, 255, 0.05);
+        }
+
+        .plot-options {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .plot-option {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="page-header">
+            <h1 class="page-title">📂 Data Viewer</h1>
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="led" id="backendLed"></div>
+                    <span>Backend</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-sidebar">
+            <!-- Left: File Browser -->
+            <div>
+                <!-- Folder Path -->
+                <div class="panel">
+                    <div class="panel-title">📁 Data Folder</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <input type="text" id="dataPath" value="./data" placeholder="Data folder path">
+                        </div>
+                        <div>
+                            <button class="btn btn-primary btn-sm" onclick="loadFolder()">🔄 Load</button>
+                        </div>
+                    </div>
+                    <div class="text-small text-muted" id="folderStatus">Enter path and click Load</div>
+                </div>
+
+                <!-- File List -->
+                <div class="panel">
+                    <div class="panel-title">📄 Files</div>
+                    <div class="btn-row mb-2">
+                        <button class="btn btn-outline btn-sm" onclick="selectAll()">Select All</button>
+                        <button class="btn btn-outline btn-sm" onclick="clearSelection()">Clear</button>
+                    </div>
+                    <div class="file-list" id="fileList">
+                        <div class="text-muted text-center" style="padding: 2rem;">
+                            No files loaded
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Selected Files -->
+                <div class="panel">
+                    <div class="panel-title">✓ Selected (<span id="selectedCount">0</span>)</div>
+                    <div id="selectedList" class="text-small text-muted">None</div>
+                    <button class="btn btn-success mt-2" onclick="plotSelected()">📈 Plot Selected</button>
+                </div>
+            </div>
+
+            <!-- Right: Plot & Data -->
+            <div>
+                <!-- Plot Options -->
+                <div class="panel">
+                    <div class="panel-title">⚙️ Plot Options</div>
+                    <div class="plot-options">
+                        <div class="plot-option">
+                            <label>X Axis:</label>
+                            <select id="xAxis">
+                                <option value="voltage" selected>Voltage (V)</option>
+                                <option value="current">Current (A)</option>
+                            </select>
+                        </div>
+                        <div class="plot-option">
+                            <label>Y Axis:</label>
+                            <select id="yAxis">
+                                <option value="current" selected>Current (A)</option>
+                                <option value="voltage">Voltage (V)</option>
+                                <option value="abs_current">|Current| (A)</option>
+                            </select>
+                        </div>
+                        <div class="plot-option">
+                            <label>Y Scale:</label>
+                            <select id="yScale">
+                                <option value="linear" selected>Linear</option>
+                                <option value="log">Log</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div class="panel">
+                    <div class="panel-title">📈 IV Curves</div>
+                    <div class="chart-container" style="height: 400px;">
+                        <canvas id="ivChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="panel">
+                    <div class="panel-title">📊 Device Parameters</div>
+                    <table class="data-table" id="statsTable">
+                        <thead>
+                            <tr>
+                                <th>File</th>
+                                <th>Isc (mA)</th>
+                                <th>Voc (V)</th>
+                                <th>FF (%)</th>
+                                <th>Pmax (mW)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="statsBody">
+                            <tr>
+                                <td colspan="5" class="text-muted text-center">No data</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Export -->
+                <div class="panel">
+                    <div class="panel-title">💾 Export</div>
+                    <div class="btn-row-3">
+                        <button class="btn btn-outline" onclick="exportCSV()">📥 CSV</button>
+                        <button class="btn btn-outline" onclick="exportImage()">🖼️ Image</button>
+                        <button class="btn btn-outline" onclick="copyStats()">📋 Copy Stats</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let files = [];
+        let selectedFiles = new Set();
+        let loadedData = {};
+        let ivChart = null;
+
+        // Colors for curves
+        const COLORS = [
+            '#00d4ff', '#00ff66', '#ff9900', '#ff4444', '#aa66ff',
+            '#4488ff', '#ff66aa', '#66ffaa', '#ffff66', '#66aaff'
+        ];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            initChart();
+            await checkConnection();
+
+            // Event listeners for plot options
+            document.getElementById('xAxis').addEventListener('change', updatePlot);
+            document.getElementById('yAxis').addEventListener('change', updatePlot);
+            document.getElementById('yScale').addEventListener('change', updatePlot);
+        });
+
+        async function checkConnection() {
+            const connected = await UI2.checkBackendConnection();
+            document.getElementById('backendLed').classList.toggle('ok', connected);
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('ivChart').getContext('2d');
+            ivChart = new Chart(ctx, {
+                type: 'scatter',
+                data: { datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 0 },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Voltage (V)', color: '#888' },
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Current (A)', color: '#888' },
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'bottom',
+                            labels: { color: '#888', usePointStyle: true }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load folder contents
+        async function loadFolder() {
+            const path = document.getElementById('dataPath').value;
+            document.getElementById('folderStatus').textContent = 'Loading...';
+
+            const result = await UI2.api('GET', '/data/list', { folder: path });
+
+            if (result && result.files) {
+                files = result.files;
+                renderFileList();
+                document.getElementById('folderStatus').textContent = `${files.length} files found`;
+            } else {
+                files = [];
+                renderFileList();
+                document.getElementById('folderStatus').textContent = 'Failed to load folder';
+            }
+        }
+
+        // Render file list
+        function renderFileList() {
+            if (files.length === 0) {
+                document.getElementById('fileList').innerHTML = `
+                    <div class="text-muted text-center" style="padding: 2rem;">
+                        No files found
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            for (const file of files) {
+                const isSelected = selectedFiles.has(file.name);
+                html += `
+                    <div class="file-item ${isSelected ? 'selected' : ''}" onclick="toggleFile('${file.name}')">
+                        <input type="checkbox" class="checkbox" ${isSelected ? 'checked' : ''} 
+                               onclick="event.stopPropagation(); toggleFile('${file.name}')">
+                        <span class="name">${file.name}</span>
+                        <span class="size">${formatSize(file.size)}</span>
+                    </div>
+                `;
+            }
+            document.getElementById('fileList').innerHTML = html;
+        }
+
+        // Format file size
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        // Toggle file selection
+        function toggleFile(name) {
+            if (selectedFiles.has(name)) {
+                selectedFiles.delete(name);
+            } else {
+                selectedFiles.add(name);
+            }
+            renderFileList();
+            updateSelectedList();
+        }
+
+        // Select all
+        function selectAll() {
+            for (const file of files) {
+                selectedFiles.add(file.name);
+            }
+            renderFileList();
+            updateSelectedList();
+        }
+
+        // Clear selection
+        function clearSelection() {
+            selectedFiles.clear();
+            renderFileList();
+            updateSelectedList();
+        }
+
+        // Update selected list
+        function updateSelectedList() {
+            document.getElementById('selectedCount').textContent = selectedFiles.size;
+
+            if (selectedFiles.size === 0) {
+                document.getElementById('selectedList').textContent = 'None';
+            } else {
+                document.getElementById('selectedList').textContent =
+                    Array.from(selectedFiles).slice(0, 5).join(', ') +
+                    (selectedFiles.size > 5 ? ` +${selectedFiles.size - 5} more` : '');
+            }
+        }
+
+        // Plot selected files
+        async function plotSelected() {
+            if (selectedFiles.size === 0) {
+                alert('Select at least one file');
+                return;
+            }
+
+            const path = document.getElementById('dataPath').value;
+            loadedData = {};
+
+            // Load each file
+            let colorIndex = 0;
+            for (const filename of selectedFiles) {
+                const result = await UI2.api('GET', '/data/load', {
+                    folder: path,
+                    filename: filename
+                });
+
+                if (result && result.data) {
+                    loadedData[filename] = {
+                        voltage: result.data.voltage || result.data.V || [],
+                        current: result.data.current || result.data.I || [],
+                        color: COLORS[colorIndex % COLORS.length]
+                    };
+                    colorIndex++;
+                }
+            }
+
+            updatePlot();
+            updateStats();
+        }
+
+        // Update plot
+        function updatePlot() {
+            const xAxis = document.getElementById('xAxis').value;
+            const yAxis = document.getElementById('yAxis').value;
+            const yScale = document.getElementById('yScale').value;
+
+            const datasets = [];
+            for (const [name, data] of Object.entries(loadedData)) {
+                let xData, yData;
+
+                // Get X data
+                if (xAxis === 'voltage') xData = data.voltage;
+                else xData = data.current;
+
+                // Get Y data
+                if (yAxis === 'voltage') yData = data.voltage;
+                else if (yAxis === 'current') yData = data.current;
+                else yData = data.current.map(v => Math.abs(v));
+
+                datasets.push({
+                    label: name,
+                    data: xData.map((x, i) => ({ x, y: yData[i] })),
+                    borderColor: data.color,
+                    backgroundColor: data.color + '40',
+                    pointRadius: 2,
+                    showLine: true,
+                    tension: 0.1
+                });
+            }
+
+            ivChart.data.datasets = datasets;
+
+            // Update axis labels
+            const xLabel = xAxis === 'voltage' ? 'Voltage (V)' : 'Current (A)';
+            const yLabel = yAxis === 'voltage' ? 'Voltage (V)' :
+                yAxis === 'abs_current' ? '|Current| (A)' : 'Current (A)';
+            ivChart.options.scales.x.title.text = xLabel;
+            ivChart.options.scales.y.title.text = yLabel;
+            ivChart.options.scales.y.type = yScale === 'log' ? 'logarithmic' : 'linear';
+
+            ivChart.update();
+        }
+
+        // Update stats table
+        function updateStats() {
+            let html = '';
+            for (const [name, data] of Object.entries(loadedData)) {
+                const stats = calculateStats(data.voltage, data.current);
+                html += `
+                    <tr>
+                        <td>${name}</td>
+                        <td>${(stats.isc * 1000).toFixed(3)}</td>
+                        <td>${stats.voc.toFixed(4)}</td>
+                        <td>${(stats.ff * 100).toFixed(1)}</td>
+                        <td>${(stats.pmax * 1000).toFixed(3)}</td>
+                    </tr>
+                `;
+            }
+            document.getElementById('statsBody').innerHTML = html ||
+                '<tr><td colspan="5" class="text-muted text-center">No data</td></tr>';
+        }
+
+        // Calculate solar cell stats
+        function calculateStats(voltage, current) {
+            // Find Isc (current at V=0)
+            let isc = current[0];
+            for (let i = 0; i < voltage.length; i++) {
+                if (Math.abs(voltage[i]) < Math.abs(voltage[0])) {
+                    isc = current[i];
+                }
+            }
+
+            // Find Voc (voltage at I=0)
+            let voc = 0;
+            for (let i = 0; i < current.length - 1; i++) {
+                if (current[i] * current[i + 1] < 0) {
+                    // Linear interpolation
+                    const slope = (voltage[i + 1] - voltage[i]) / (current[i + 1] - current[i]);
+                    voc = voltage[i] - current[i] * slope;
+                    break;
+                }
+            }
+
+            // Find Pmax
+            let pmax = 0;
+            for (let i = 0; i < voltage.length; i++) {
+                const power = Math.abs(voltage[i] * current[i]);
+                if (power > pmax) pmax = power;
+            }
+
+            // Calculate FF
+            const ff = Math.abs(isc * voc) > 0 ? pmax / Math.abs(isc * voc) : 0;
+
+            return { isc: Math.abs(isc), voc, pmax, ff };
+        }
+
+        // Export CSV
+        function exportCSV() {
+            const allData = [];
+            for (const [name, data] of Object.entries(loadedData)) {
+                for (let i = 0; i < data.voltage.length; i++) {
+                    allData.push({
+                        file: name,
+                        voltage: data.voltage[i],
+                        current: data.current[i]
+                    });
+                }
+            }
+            Utils.downloadCSV(allData, 'iv_data.csv', ['file', 'voltage', 'current']);
+        }
+
+        // Export image
+        function exportImage() {
+            const link = document.createElement('a');
+            link.download = 'iv_curves.png';
+            link.href = ivChart.toBase64Image();
+            link.click();
+        }
+
+        // Copy stats
+        function copyStats() {
+            const rows = [];
+            rows.push(['File', 'Isc (mA)', 'Voc (V)', 'FF (%)', 'Pmax (mW)'].join('\t'));
+
+            for (const [name, data] of Object.entries(loadedData)) {
+                const stats = calculateStats(data.voltage, data.current);
+                rows.push([
+                    name,
+                    (stats.isc * 1000).toFixed(3),
+                    stats.voc.toFixed(4),
+                    (stats.ff * 100).toFixed(1),
+                    (stats.pmax * 1000).toFixed(3)
+                ].join('\t'));
+            }
+
+            navigator.clipboard.writeText(rows.join('\n'))
+                .then(() => alert('Stats copied to clipboard'))
+                .catch(() => alert('Failed to copy'));
+        }
+    </script>
+</body>
+
+</html>

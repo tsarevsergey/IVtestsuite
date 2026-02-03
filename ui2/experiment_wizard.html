@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Experiment Wizard - UI2</title>
+    <link rel="stylesheet" href="css/theme.css">
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <style>
+        .template-card {
+            padding: 1rem;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 0.75rem;
+        }
+
+        .template-card:hover {
+            border-color: var(--accent-cyan);
+            background: rgba(0, 212, 255, 0.05);
+        }
+
+        .template-card.selected {
+            border-color: var(--accent-cyan);
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        .template-card .title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .template-card .desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .param-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .param-section h3 {
+            font-size: 0.9rem;
+            color: var(--accent-cyan);
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="page-header">
+            <h1 class="page-title">🧙‍♂️ Experiment Wizard</h1>
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="led" id="backendLed"></div>
+                    <span>Backend</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-sidebar">
+            <!-- Left: Template Selection & Parameters -->
+            <div>
+                <!-- Template Selection -->
+                <div class="panel">
+                    <div class="panel-title">📋 Select Template</div>
+
+                    <div class="template-card" data-template="multipixel" onclick="selectTemplate('multipixel')">
+                        <div class="title">🔬 Multipixel IV Sweep</div>
+                        <div class="desc">Single IV sweep across all specified pixels</div>
+                    </div>
+
+                    <div class="template-card" data-template="dark_light" onclick="selectTemplate('dark_light')">
+                        <div class="title">🌑→💡 Dark → Light (Batch)</div>
+                        <div class="desc">Sweep all pixels in dark, then all pixels with light ON</div>
+                    </div>
+
+                    <div class="template-card" data-template="light_dark" onclick="selectTemplate('light_dark')">
+                        <div class="title">💡→🌑 Light → Dark (Batch)</div>
+                        <div class="desc">Sweep all pixels with light ON, then all in dark</div>
+                    </div>
+                </div>
+
+                <!-- Template Description -->
+                <div class="panel" id="templateInfo" style="display: none;">
+                    <div class="alert alert-info" id="templateDescription"></div>
+                </div>
+            </div>
+
+            <!-- Right: Configuration Form -->
+            <div>
+                <div class="panel" id="configPanel" style="display: none;">
+                    <div class="panel-title">⚙️ Configuration</div>
+
+                    <!-- Sample Settings -->
+                    <div class="param-section">
+                        <h3>📁 Sample & Output</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Sample Name</label>
+                                <input type="text" id="sampleName" value="TEST">
+                            </div>
+                            <div class="form-group">
+                                <label>Data Folder</label>
+                                <input type="text" id="dataFolder" value="./data">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Pixel Sequence (e.g. 1,2,3 or 1-8)</label>
+                            <input type="text" id="pixelSequence" value="1,2,3,4,5,6,7,8">
+                        </div>
+                    </div>
+
+                    <!-- Sweep Settings -->
+                    <div class="param-section">
+                        <h3>📊 IV Sweep Parameters</h3>
+                        <div class="form-row-3">
+                            <div class="form-group">
+                                <label>Start (V)</label>
+                                <input type="number" id="sweepStart" value="-0.2" step="0.1">
+                            </div>
+                            <div class="form-group">
+                                <label>Stop (V)</label>
+                                <input type="number" id="sweepStop" value="1.2" step="0.1">
+                            </div>
+                            <div class="form-group">
+                                <label>Points</label>
+                                <input type="number" id="sweepPoints" value="50" min="10" max="500">
+                            </div>
+                        </div>
+                        <div class="form-row-3">
+                            <div class="form-group">
+                                <label>Delay (s)</label>
+                                <input type="number" id="sweepDelay" value="0.01" step="0.01" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Type</label>
+                                <select id="sweepType">
+                                    <option value="single">Single</option>
+                                    <option value="double" selected>Double</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Direction</label>
+                                <select id="sweepDirection">
+                                    <option value="forward" selected>Forward</option>
+                                    <option value="backward">Backward</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hardware Settings -->
+                    <div class="param-section">
+                        <h3>🔧 Hardware Configuration</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Sweep Channel</label>
+                                <select id="sweepChannel">
+                                    <option value="1">CH 1</option>
+                                    <option value="2" selected>CH 2</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>NPLC (Speed)</label>
+                                <input type="number" id="nplc" value="1.0" step="0.1" min="0.01" max="100">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Compliance Type</label>
+                                <select id="complianceType">
+                                    <option value="CURR" selected>Current (A)</option>
+                                    <option value="VOLT">Voltage (V)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Compliance Value</label>
+                                <input type="number" id="complianceValue" value="0.1" step="0.01">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Light Settings (for dark/light modes) -->
+                    <div class="param-section" id="lightSection" style="display: none;">
+                        <h3>💡 Light Source</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Bias Channel</label>
+                                <select id="lightChannel">
+                                    <option value="1" selected>CH 1</option>
+                                    <option value="2">CH 2</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Mode</label>
+                                <select id="lightMode" onchange="toggleLightMode()">
+                                    <option value="current">Current (A)</option>
+                                    <option value="irradiance">Irradiance</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="lightCurrentInput">
+                            <div class="form-group">
+                                <label>LED Current (A)</label>
+                                <input type="number" id="ledCurrent" value="0.001" step="0.0001">
+                            </div>
+                        </div>
+                        <div id="lightIrradianceInput" class="hidden">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Calibration File</label>
+                                    <select id="calibrationFile"></select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Target Irradiance (W/cm²)</label>
+                                    <input type="number" id="targetIrradiance" value="0.1" step="0.01">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Actions -->
+                    <div class="btn-row-3">
+                        <button class="btn btn-primary" onclick="generateProtocol()">📄 Generate YAML</button>
+                        <button class="btn btn-success" onclick="saveProtocol()">💾 Save Protocol</button>
+                        <button class="btn btn-warning" onclick="runDirect()">▶ Run Now</button>
+                    </div>
+                </div>
+
+                <!-- YAML Preview -->
+                <div class="panel">
+                    <div class="panel-title">📄 Generated Protocol</div>
+                    <pre class="code-block" id="yamlPreview"
+                        style="min-height: 300px;">Select a template to begin...</pre>
+                </div>
+
+                <!-- Save Dialog -->
+                <div class="panel" id="saveDialog" style="display: none;">
+                    <div class="panel-title">💾 Save Protocol</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Protocol Name</label>
+                            <input type="text" id="protocolName" value="">
+                        </div>
+                        <div class="form-group">
+                            <label>Folder</label>
+                            <input type="text" id="protocolFolder" value="Custom">
+                        </div>
+                    </div>
+                    <div class="btn-row">
+                        <button class="btn btn-success" onclick="confirmSave()">✓ Save</button>
+                        <button class="btn btn-outline" onclick="cancelSave()">✗ Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let selectedTemplate = null;
+        let generatedYaml = null;
+
+        const TEMPLATE_DESCRIPTIONS = {
+            'multipixel': 'Performs a single IV sweep on each specified pixel in sequence. Ideal for basic device characterization.',
+            'dark_light': 'Batch operation: First scans ALL pixels in dark conditions, then scans ALL pixels again with the light source ON. Useful for measuring photovoltaic response.',
+            'light_dark': 'Batch operation: First scans ALL pixels with light ON, then scans ALL pixels in dark. Useful for studying decay or stabilization effects.'
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkConnection();
+        });
+
+        async function checkConnection() {
+            const connected = await UI2.checkBackendConnection();
+            document.getElementById('backendLed').classList.toggle('ok', connected);
+        }
+
+        // Select template
+        function selectTemplate(template) {
+            selectedTemplate = template;
+
+            // Update UI
+            document.querySelectorAll('.template-card').forEach(el => {
+                el.classList.toggle('selected', el.dataset.template === template);
+            });
+
+            // Show configuration panel
+            document.getElementById('configPanel').style.display = 'block';
+            document.getElementById('templateInfo').style.display = 'block';
+            document.getElementById('templateDescription').textContent = TEMPLATE_DESCRIPTIONS[template];
+
+            // Show/hide light section
+            const showLight = template !== 'multipixel';
+            document.getElementById('lightSection').style.display = showLight ? 'block' : 'none';
+
+            // Generate initial YAML
+            generateProtocol();
+        }
+
+        // Toggle light mode
+        function toggleLightMode() {
+            const mode = document.getElementById('lightMode').value;
+            document.getElementById('lightCurrentInput').classList.toggle('hidden', mode !== 'current');
+            document.getElementById('lightIrradianceInput').classList.toggle('hidden', mode !== 'irradiance');
+        }
+
+        // Generate protocol YAML
+        function generateProtocol() {
+            if (!selectedTemplate) return;
+
+            const params = getParams();
+
+            let yaml;
+            switch (selectedTemplate) {
+                case 'multipixel':
+                    yaml = generateMultipixelSweep(params);
+                    break;
+                case 'dark_light':
+                    yaml = generateDarkLightBatch(params, 'dark_first');
+                    break;
+                case 'light_dark':
+                    yaml = generateDarkLightBatch(params, 'light_first');
+                    break;
+            }
+
+            generatedYaml = yaml;
+            document.getElementById('yamlPreview').textContent =
+                JSON.stringify(yaml, null, 2).replace(/"/g, '');
+        }
+
+        // Get parameters from form
+        function getParams() {
+            return {
+                sample_name: document.getElementById('sampleName').value,
+                folder: document.getElementById('dataFolder').value,
+                pixels: Utils.parsePixelString(document.getElementById('pixelSequence').value),
+                sweep_start: parseFloat(document.getElementById('sweepStart').value),
+                sweep_stop: parseFloat(document.getElementById('sweepStop').value),
+                points: parseInt(document.getElementById('sweepPoints').value),
+                delay: parseFloat(document.getElementById('sweepDelay').value),
+                sweep_type: document.getElementById('sweepType').value,
+                direction: document.getElementById('sweepDirection').value,
+                sweep_channel: parseInt(document.getElementById('sweepChannel').value),
+                nplc: parseFloat(document.getElementById('nplc').value),
+                compliance_type: document.getElementById('complianceType').value,
+                compliance: parseFloat(document.getElementById('complianceValue').value),
+                light_channel: parseInt(document.getElementById('lightChannel').value),
+                light_current: parseFloat(document.getElementById('ledCurrent').value)
+            };
+        }
+
+        // Generate Multipixel Sweep
+        function generateMultipixelSweep(p) {
+            return {
+                name: `${p.sample_name}_multipixel`,
+                description: `Multipixel IV sweep for ${p.sample_name}`,
+                steps: [
+                    { action: 'smu/connect', params: { channel: p.sweep_channel, mock: true } },
+                    { action: 'relays/connect', params: { mock: true } },
+                    {
+                        action: 'smu/configure', params: {
+                            channel: p.sweep_channel,
+                            nplc: p.nplc,
+                            compliance: p.compliance
+                        }
+                    },
+                    {
+                        action: 'loop',
+                        params: { variable: 'pixel', sequence: p.pixels },
+                        steps: [
+                            { action: 'relays/pixel', params: { pixel_id: '${pixel}' } },
+                            { action: 'delay', params: { seconds: 0.5 } },
+                            {
+                                action: 'smu/sweep',
+                                params: {
+                                    channel: p.sweep_channel,
+                                    start: p.sweep_start,
+                                    stop: p.sweep_stop,
+                                    points: p.points,
+                                    delay: p.delay,
+                                    sweep_type: p.sweep_type
+                                },
+                                capture: 'iv_data'
+                            },
+                            {
+                                action: 'data/save',
+                                params: {
+                                    filename: `${p.sample_name}_P\${pixel}`,
+                                    folder: p.folder,
+                                    source: 'iv_data'
+                                }
+                            }
+                        ]
+                    },
+                    { action: 'smu/output', params: { channel: p.sweep_channel, enabled: false } }
+                ]
+            };
+        }
+
+        // Generate Dark/Light Batch
+        function generateDarkLightBatch(p, order) {
+            const darkFirst = order === 'dark_first';
+
+            const makeLoopStep = (isLight, suffix) => ({
+                action: 'loop',
+                params: { variable: 'pixel', sequence: p.pixels },
+                steps: [
+                    { action: 'relays/pixel', params: { pixel_id: '${pixel}' } },
+                    ...(isLight ? [
+                        { action: 'smu/set', params: { channel: p.light_channel, value: p.light_current } },
+                        { action: 'smu/output', params: { channel: p.light_channel, enabled: true } },
+                        { action: 'delay', params: { seconds: 0.5 } }
+                    ] : []),
+                    {
+                        action: 'smu/sweep',
+                        params: {
+                            channel: p.sweep_channel,
+                            start: p.sweep_start,
+                            stop: p.sweep_stop,
+                            points: p.points,
+                            delay: p.delay,
+                            sweep_type: p.sweep_type
+                        },
+                        capture: 'iv_data'
+                    },
+                    {
+                        action: 'data/save',
+                        params: {
+                            filename: `${p.sample_name}_P\${pixel}${suffix}`,
+                            folder: p.folder,
+                            source: 'iv_data'
+                        }
+                    },
+                    ...(isLight ? [
+                        { action: 'smu/output', params: { channel: p.light_channel, enabled: false } }
+                    ] : [])
+                ]
+            });
+
+            const loop1 = makeLoopStep(!darkFirst, darkFirst ? '_drk' : '_lit');
+            const loop2 = makeLoopStep(darkFirst, darkFirst ? '_lit' : '_drk');
+
+            return {
+                name: `${p.sample_name}_${order}`,
+                description: `${order === 'dark_first' ? 'Dark→Light' : 'Light→Dark'} batch sweep`,
+                steps: [
+                    { action: 'smu/connect', params: { channel: p.sweep_channel, mock: true } },
+                    { action: 'smu/connect', params: { channel: p.light_channel, mock: true } },
+                    { action: 'relays/connect', params: { mock: true } },
+                    {
+                        action: 'smu/configure', params: {
+                            channel: p.sweep_channel,
+                            nplc: p.nplc,
+                            compliance: p.compliance
+                        }
+                    },
+                    {
+                        action: 'smu/configure', params: {
+                            channel: p.light_channel,
+                            nplc: 1,
+                            compliance: 10,
+                            mode: 'CURR'
+                        }
+                    },
+                    loop1,
+                    loop2,
+                    { action: 'smu/output', params: { channel: p.sweep_channel, enabled: false } },
+                    { action: 'smu/output', params: { channel: p.light_channel, enabled: false } }
+                ]
+            };
+        }
+
+        // Save protocol
+        function saveProtocol() {
+            if (!generatedYaml) {
+                alert('Generate a protocol first');
+                return;
+            }
+            document.getElementById('protocolName').value = generatedYaml.name || 'New Protocol';
+            document.getElementById('saveDialog').style.display = 'block';
+        }
+
+        async function confirmSave() {
+            const name = document.getElementById('protocolName').value;
+            const folder = document.getElementById('protocolFolder').value;
+
+            const result = await UI2.saveProtocol(name, generatedYaml, folder);
+
+            if (result.success !== false) {
+                alert(`Saved: ${folder}/${name}.yaml`);
+                document.getElementById('saveDialog').style.display = 'none';
+            } else {
+                alert(`Save failed: ${result.message}`);
+            }
+        }
+
+        function cancelSave() {
+            document.getElementById('saveDialog').style.display = 'none';
+        }
+
+        // Run directly
+        async function runDirect() {
+            if (!generatedYaml) {
+                alert('Generate a protocol first');
+                return;
+            }
+
+            const result = await UI2.runInlineProtocol(generatedYaml);
+            if (result.success !== false) {
+                alert('Protocol started! Switch to Protocol Runner to monitor.');
+            } else {
+                alert(`Failed: ${result.message}`);
+            }
+        }
+    </script>
+</body>
+
+</html>

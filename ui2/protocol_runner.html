@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Protocol Runner - UI2</title>
+    <link rel="stylesheet" href="css/theme.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <style>
+        .protocol-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .protocol-item {
+            padding: 0.6rem 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .protocol-item:hover {
+            border-color: var(--accent-cyan);
+            background: rgba(0, 212, 255, 0.05);
+        }
+
+        .protocol-item.selected {
+            border-color: var(--accent-cyan);
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        .protocol-item .name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .protocol-item .folder {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .yaml-preview {
+            max-height: 250px;
+        }
+
+        .run-progress {
+            margin: 1rem 0;
+        }
+
+        .step-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .step-item {
+            padding: 0.4rem 0.6rem;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            margin-bottom: 0.25rem;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .step-item .icon {
+            font-size: 0.9rem;
+        }
+
+        .step-item.done .icon {
+            color: var(--accent-green);
+        }
+
+        .step-item.running .icon {
+            color: var(--accent-cyan);
+            animation: pulse 1s infinite;
+        }
+
+        .step-item.pending .icon {
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="page-header">
+            <h1 class="page-title">▶️ Protocol Runner</h1>
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="led" id="backendLed"></div>
+                    <span>Backend</span>
+                </div>
+                <div class="status-item">
+                    <div class="led" id="runLed"></div>
+                    <span id="runStatus">Idle</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-sidebar">
+            <!-- Left: Protocol Selection -->
+            <div>
+                <!-- Protocol List -->
+                <div class="panel">
+                    <div class="panel-title">📁 Protocol Library</div>
+                    <button class="btn btn-outline btn-sm mb-2" onclick="loadProtocols()">🔄 Refresh</button>
+                    <div class="protocol-list" id="protocolList">
+                        <div class="text-center text-muted">Loading...</div>
+                    </div>
+                </div>
+
+                <!-- Override Controls -->
+                <div class="panel">
+                    <div class="panel-title">🛠️ Run Parameters</div>
+
+                    <!-- Mock Mode -->
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="mockMode" checked>
+                            Mock Mode (no hardware)
+                        </label>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Filename Override -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Sample Name</label>
+                            <input type="text" id="sampleName" value="TEST" placeholder="Sample name">
+                        </div>
+                        <div class="form-group">
+                            <label>Data Folder</label>
+                            <input type="text" id="dataFolder" value="./data" placeholder="Folder path">
+                        </div>
+                    </div>
+
+                    <!-- Pixel Override -->
+                    <div class="form-group">
+                        <label>Pixels (e.g. 1,2,3 or 1-8)</label>
+                        <input type="text" id="pixelSequence" value="1,2,3,4,5,6,7,8" placeholder="1-8">
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Light Source Override -->
+                    <div class="form-group">
+                        <label>Light Source Mode</label>
+                        <select id="lightMode" onchange="toggleLightMode()">
+                            <option value="current">Current (A)</option>
+                            <option value="irradiance">Irradiance (W/cm²)</option>
+                        </select>
+                    </div>
+                    <div id="currentModeInputs">
+                        <div class="form-group">
+                            <label>LED Current (A)</label>
+                            <input type="number" id="ledCurrent" value="0.001" step="0.0001">
+                        </div>
+                    </div>
+                    <div id="irradianceModeInputs" class="hidden">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Calibration File</label>
+                                <select id="calibrationFile"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Target Irradiance</label>
+                                <input type="number" id="targetIrradiance" value="0.1" step="0.01">
+                            </div>
+                        </div>
+                        <div class="alert alert-info" id="irradianceResult"></div>
+                    </div>
+                </div>
+
+                <!-- Run Controls -->
+                <div class="panel">
+                    <div class="panel-title">▶️ Execution</div>
+                    <div class="btn-row">
+                        <button class="btn btn-success" id="btnRun" onclick="runProtocol()" disabled>
+                            ▶ RUN PROTOCOL
+                        </button>
+                        <button class="btn btn-danger" id="btnStop" onclick="stopProtocol()" disabled>
+                            ■ STOP
+                        </button>
+                    </div>
+
+                    <!-- Progress -->
+                    <div class="run-progress hidden" id="progressSection">
+                        <div class="progress-bar">
+                            <div class="fill" id="progressFill" style="width: 0%"></div>
+                        </div>
+                        <div class="text-small text-muted mt-1" id="progressText">0%</div>
+                    </div>
+
+                    <!-- Step List -->
+                    <div class="step-list mt-2" id="stepList"></div>
+                </div>
+            </div>
+
+            <!-- Right: Preview & Results -->
+            <div>
+                <!-- YAML Preview -->
+                <div class="panel">
+                    <div class="panel-title">📄 Protocol Preview</div>
+                    <div id="protocolName" class="mb-1" style="font-size: 1.1rem; font-weight: 600;">
+                        Select a protocol
+                    </div>
+                    <div id="protocolDesc" class="text-small text-muted mb-2"></div>
+                    <pre class="code-block yaml-preview" id="yamlPreview">No protocol selected</pre>
+                </div>
+
+                <!-- IV Curve Display -->
+                <div class="panel">
+                    <div class="panel-title">📈 IV Curve Results</div>
+                    <div class="chart-container" style="height: 350px;">
+                        <canvas id="ivChart"></canvas>
+                    </div>
+                    <div class="stats-grid mt-2">
+                        <div class="stat-box">
+                            <div class="label">Scans</div>
+                            <div class="value" id="statScans">0</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="label">Last Isc</div>
+                            <div class="value" id="statIsc">--</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="label">Last Voc</div>
+                            <div class="value" id="statVoc">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Log -->
+                <div class="panel">
+                    <div class="panel-title">📋 Log</div>
+                    <div class="log-box" id="logBox"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let protocols = [];
+        let selectedProtocol = null;
+        let selectedYaml = null;
+        let ivChart = null;
+        let scanCount = 0;
+        let pollInterval = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            initChart();
+            await checkConnection();
+            await loadProtocols();
+            Utils.log('logBox', 'Protocol Runner initialized');
+        });
+
+        // Check backend connection
+        async function checkConnection() {
+            const connected = await UI2.checkBackendConnection();
+            document.getElementById('backendLed').classList.toggle('ok', connected);
+            if (!connected) {
+                Utils.log('logBox', 'Backend not connected', 'error');
+            }
+        }
+
+        // Load protocol list
+        async function loadProtocols() {
+            Utils.log('logBox', 'Loading protocols...');
+            const result = await UI2.getProtocolList();
+
+            if (result && result.protocols) {
+                protocols = result.protocols;
+                renderProtocolList();
+                Utils.log('logBox', `Loaded ${protocols.length} protocols`, 'success');
+            } else {
+                document.getElementById('protocolList').innerHTML =
+                    '<div class="alert alert-error">Failed to load protocols</div>';
+                Utils.log('logBox', 'Failed to load protocols', 'error');
+            }
+        }
+
+        // Render protocol list
+        function renderProtocolList() {
+            const list = document.getElementById('protocolList');
+
+            if (protocols.length === 0) {
+                list.innerHTML = '<div class="text-muted text-center">No protocols found</div>';
+                return;
+            }
+
+            // Group by folder
+            const grouped = {};
+            for (const p of protocols) {
+                const folder = p.id.includes('/') ? p.id.split('/')[0] : 'Root';
+                if (!grouped[folder]) grouped[folder] = [];
+                grouped[folder].push(p);
+            }
+
+            let html = '';
+            for (const [folder, items] of Object.entries(grouped)) {
+                html += `<div class="text-small text-muted mb-1 mt-2">${folder}</div>`;
+                for (const p of items) {
+                    const name = p.name || p.id.split('/').pop();
+                    html += `
+                        <div class="protocol-item" data-id="${p.id}" onclick="selectProtocol('${p.id}')">
+                            <div class="name">${name}</div>
+                        </div>
+                    `;
+                }
+            }
+            list.innerHTML = html;
+        }
+
+        // Select protocol
+        async function selectProtocol(id) {
+            // Update UI selection
+            document.querySelectorAll('.protocol-item').forEach(el => {
+                el.classList.toggle('selected', el.dataset.id === id);
+            });
+
+            selectedProtocol = protocols.find(p => p.id === id);
+            document.getElementById('protocolName').textContent = selectedProtocol?.name || id;
+            document.getElementById('btnRun').disabled = false;
+
+            // Load YAML content
+            Utils.log('logBox', `Loading protocol: ${id}`);
+            const result = await UI2.getProtocolContent(id);
+
+            if (result && result.content) {
+                selectedYaml = result.content;
+                document.getElementById('protocolDesc').textContent = result.content.description || '';
+                document.getElementById('yamlPreview').textContent =
+                    typeof result.raw === 'string' ? result.raw : JSON.stringify(result.content, null, 2);
+                Utils.log('logBox', 'Protocol loaded', 'success');
+            } else {
+                document.getElementById('yamlPreview').textContent = 'Failed to load';
+                Utils.log('logBox', 'Failed to load protocol content', 'error');
+            }
+        }
+
+        // Toggle light mode inputs
+        function toggleLightMode() {
+            const mode = document.getElementById('lightMode').value;
+            document.getElementById('currentModeInputs').classList.toggle('hidden', mode !== 'current');
+            document.getElementById('irradianceModeInputs').classList.toggle('hidden', mode !== 'irradiance');
+        }
+
+        // Run protocol
+        async function runProtocol() {
+            if (!selectedYaml) {
+                Utils.log('logBox', 'No protocol selected', 'error');
+                return;
+            }
+
+            const mockMode = document.getElementById('mockMode').checked;
+            Utils.log('logBox', `Starting protocol (mock=${mockMode})...`);
+
+            // Update UI state
+            document.getElementById('btnRun').disabled = true;
+            document.getElementById('btnStop').disabled = false;
+            document.getElementById('runLed').classList.add('running');
+            document.getElementById('runStatus').textContent = 'Running';
+            document.getElementById('progressSection').classList.remove('hidden');
+
+            // Build overrides
+            const overrides = {
+                mock: mockMode,
+                sample_name: document.getElementById('sampleName').value,
+                folder: document.getElementById('dataFolder').value,
+                pixels: Utils.parsePixelString(document.getElementById('pixelSequence').value)
+            };
+
+            // Light source override
+            const lightMode = document.getElementById('lightMode').value;
+            if (lightMode === 'current') {
+                overrides.led_current = parseFloat(document.getElementById('ledCurrent').value);
+            }
+
+            // Apply overrides to YAML
+            const modifiedYaml = Utils.deepClone(selectedYaml);
+
+            // Run via inline API
+            const result = await UI2.runInlineProtocol(modifiedYaml);
+
+            if (result.success !== false) {
+                Utils.log('logBox', 'Protocol started', 'success');
+                startPolling();
+            } else {
+                Utils.log('logBox', `Failed to start: ${result.message}`, 'error');
+                resetRunState();
+            }
+        }
+
+        // Stop protocol
+        async function stopProtocol() {
+            Utils.log('logBox', 'Stopping protocol...');
+            await UI2.api('POST', '/protocol/abort');
+            resetRunState();
+            Utils.log('logBox', 'Protocol stopped', 'warning');
+        }
+
+        // Poll for status
+        function startPolling() {
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(async () => {
+                const status = await UI2.getRunStatus();
+                updateProgress(status);
+
+                if (status.state === 'IDLE' || status.state === 'ERROR') {
+                    stopPolling();
+                    resetRunState();
+                    if (status.state === 'ERROR') {
+                        Utils.log('logBox', `Error: ${status.error}`, 'error');
+                    } else {
+                        Utils.log('logBox', 'Protocol completed', 'success');
+                    }
+                }
+            }, 500);
+        }
+
+        function stopPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }
+
+        // Update progress UI
+        function updateProgress(status) {
+            const progress = status.progress || 0;
+            document.getElementById('progressFill').style.width = `${progress}%`;
+            document.getElementById('progressText').textContent = `${Math.round(progress)}%`;
+
+            // Update current step
+            if (status.current_step) {
+                document.getElementById('runStatus').textContent = status.current_step;
+            }
+
+            // Update IV data if available
+            if (status.last_iv_data) {
+                addIVCurve(status.last_iv_data);
+            }
+        }
+
+        // Reset run state
+        function resetRunState() {
+            document.getElementById('btnRun').disabled = !selectedProtocol;
+            document.getElementById('btnStop').disabled = true;
+            document.getElementById('runLed').classList.remove('running');
+            document.getElementById('runStatus').textContent = 'Idle';
+        }
+
+        // Initialize chart
+        function initChart() {
+            const ctx = document.getElementById('ivChart').getContext('2d');
+            ivChart = new Chart(ctx, {
+                type: 'scatter',
+                data: { datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 0 },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Voltage (V)', color: '#888' },
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Current (A)', color: '#888' },
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: { color: '#888' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Add IV curve to chart
+        function addIVCurve(data) {
+            scanCount++;
+            document.getElementById('statScans').textContent = scanCount;
+
+            // Create dataset
+            const colors = ['#00d4ff', '#00ff66', '#ff9900', '#ff4444', '#aa66ff', '#4488ff'];
+            const color = colors[(scanCount - 1) % colors.length];
+
+            const dataset = {
+                label: data.label || `Scan ${scanCount}`,
+                data: data.voltage.map((v, i) => ({ x: v, y: data.current[i] })),
+                borderColor: color,
+                backgroundColor: color + '20',
+                pointRadius: 2,
+                showLine: true,
+                tension: 0.1
+            };
+
+            // Keep last 8 curves
+            if (ivChart.data.datasets.length >= 8) {
+                ivChart.data.datasets.shift();
+            }
+            ivChart.data.datasets.push(dataset);
+            ivChart.update('none');
+
+            // Update stats
+            if (data.current && data.current.length > 0) {
+                const isc = data.current[0];
+                document.getElementById('statIsc').textContent = Utils.formatCurrent(isc);
+            }
+            if (data.voltage && data.voltage.length > 0) {
+                // Find Voc (where current crosses zero)
+                for (let i = 0; i < data.current.length - 1; i++) {
+                    if (data.current[i] * data.current[i + 1] < 0) {
+                        document.getElementById('statVoc').textContent =
+                            Utils.formatVoltage(data.voltage[i]);
+                        break;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
