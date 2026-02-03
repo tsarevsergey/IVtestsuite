@@ -64,6 +64,10 @@ class RunManager:
         self._shutdown_callbacks: List[Callable] = []
         self._error_message: Optional[str] = None
         
+        # Progress tracking
+        self._steps_completed = 0
+        self._total_steps = 0
+        
         self._initialized = True
         logger.info("RunManager initialized")
     
@@ -124,6 +128,8 @@ class RunManager:
             elif new_state == RunState.IDLE:
                 self._run_start_time = None
                 self._error_message = None
+                self._steps_completed = 0
+                self._total_steps = 0
                 # CRITICAL: We DO NOT clear the abort flag here. 
                 # It stays set until ARMED or RUNNING to ensure engines see it.
             
@@ -186,6 +192,12 @@ class RunManager:
             elif self._state == RunState.IDLE:
                 return True  # Already idle
             return False
+
+    def set_progress(self, completed: int, total: int):
+        """Update current execution progress."""
+        with self._state_lock:
+            self._steps_completed = completed
+            self._total_steps = total
     
     def is_abort_requested(self) -> bool:
         """Check if abort has been requested (for long-running operations)."""
@@ -218,6 +230,8 @@ class RunManager:
             "run_duration_seconds": round(self.run_duration_seconds, 2) if self.run_duration_seconds else None,
             "error_message": self.error_message,
             "abort_requested": self.is_abort_requested(),
+            "steps_completed": self._steps_completed,
+            "total_steps": self._total_steps
         }
 
 

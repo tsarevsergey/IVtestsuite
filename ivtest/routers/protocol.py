@@ -75,6 +75,8 @@ class ProtocolStatusResponse(BaseModel):
     state: str
     run_duration_seconds: Optional[float] = 0.0
     abort_requested: bool
+    steps_completed: int = 0
+    total_steps: int = 0
 
 
 # --- Endpoints ---
@@ -261,10 +263,13 @@ async def get_protocol_history(limit: Optional[int] = None):
 @router.get("/status", response_model=ProtocolStatusResponse)
 async def get_protocol_status():
     """Get current protocol execution status."""
+    status = run_manager.get_status()
     return ProtocolStatusResponse(
-        state=run_manager.state.value,
-        run_duration_seconds=run_manager.run_duration_seconds or 0.0,
-        abort_requested=run_manager.is_abort_requested()
+        state=status["state"],
+        run_duration_seconds=status["run_duration_seconds"] or 0.0,
+        abort_requested=status["abort_requested"],
+        steps_completed=status["steps_completed"],
+        total_steps=status["total_steps"]
     )
 
 

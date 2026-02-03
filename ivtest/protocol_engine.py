@@ -112,6 +112,8 @@ class ProtocolEngine:
             run_manager.arm()
         if run_manager.state == RunState.ARMED:
             run_manager.start()
+        
+        run_manager.set_progress(0, len(steps))
             
         try:
             for i, step in enumerate(steps):
@@ -141,6 +143,9 @@ class ProtocolEngine:
                         step_results=step_results,
                         captured_data=self._captured
                     )
+                
+                # Update progress
+                run_manager.set_progress(i + 1, len(steps))
                 
                 # Capture result if requested
                 if "capture_as" in step and result.result:

@@ -132,6 +132,24 @@
             align-items: center;
             gap: 0.5rem;
             color: var(--accent-cyan);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .section-header:hover {
+            opacity: 0.8;
+        }
+
+        .override-section.collapsed {
+            padding-bottom: 0.4rem;
+        }
+
+        .override-section.collapsed #setupContent {
+            display: none;
+        }
+
+        .override-section.collapsed .section-header {
+            margin-bottom: 0;
         }
 
         /* Execution Styles */
@@ -255,108 +273,117 @@
                         <div class="metric-label">Data Points</div>
                         <div class="metric-value" id="valPoints">0</div>
                     </div>
-                    <div class="metric-card">
+                    <div class="metric-card"
+                        style="border-left-color: var(--accent-green); position: relative; overflow: hidden;">
                         <div class="metric-label">Progress</div>
                         <div class="metric-value" id="valProgress">0%</div>
+                        <div id="progressBar"
+                            style="position: absolute; bottom: 0; left: 0; height: 4px; background: var(--accent-green); width: 0%; transition: width 0.3s;">
+                        </div>
                     </div>
                 </div>
 
                 <!-- 2. Parameter Overrides -->
-                <div class="override-section">
-                    <div class="section-header">🛠️ Setup & Parameters (Overrides)</div>
-
-                    <!-- 🛡️ Global Overrides -->
-                    <div class="form-group mb-2">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="mockOverride" checked>
-                            <strong>🛡️ Global Mock Mode</strong> (Force mock=true for all HW)
-                        </label>
+                <div class="override-section" id="setupSection">
+                    <div class="section-header" onclick="toggleSetup()">
+                        <span id="setupToggleIcon">▼</span> 🛠️ Setup & Parameters (Overrides)
                     </div>
 
-                    <hr class="divider mb-2">
+                    <div id="setupContent">
+                        <!-- 🛡️ Global Overrides -->
+                        <div class="form-group mb-2">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="mockOverride" checked>
+                                <strong>🛡️ Global Mock Mode</strong> (Force mock=true for all HW)
+                            </label>
+                        </div>
 
-                    <!-- 📦 Filename & Folder Replacement -->
-                    <div class="group-title">1. Filename & Folder Replacement</div>
-                    <div class="form-row mb-2">
-                        <div class="form-group mb-0">
-                            <label>Mode</label>
-                            <div class="radio-group" style="width: fit-content;">
-                                <div class="radio-btn active" id="modeFNR" onclick="setFnameMode('fnr')">Find & Replace
+                        <hr class="divider mb-2">
+
+                        <!-- 📦 Filename & Folder Replacement -->
+                        <div class="group-title">1. Filename & Folder Replacement</div>
+                        <div class="form-row mb-2">
+                            <div class="form-group mb-0">
+                                <label>Mode</label>
+                                <div class="radio-group" style="width: fit-content;">
+                                    <div class="radio-btn active" id="modeFNR" onclick="setFnameMode('fnr')">Find &
+                                        Replace
+                                    </div>
+                                    <div class="radio-btn" id="modeLiteral" onclick="setFnameMode('literal')">Literal
+                                        (Global)</div>
                                 </div>
-                                <div class="radio-btn" id="modeLiteral" onclick="setFnameMode('literal')">Literal
-                                    (Global)</div>
                             </div>
                         </div>
-                    </div>
 
-                    <div id="fnrFields" class="form-row">
-                        <div class="form-group">
-                            <label>Find</label>
-                            <input type="text" id="fnameFind" value="TEST">
+                        <div id="fnrFields" class="form-row">
+                            <div class="form-group">
+                                <label>Find</label>
+                                <input type="text" id="fnameFind" value="TEST">
+                            </div>
+                            <div class="form-group">
+                                <label>Replace with</label>
+                                <input type="text" id="fnameReplace" value="AA1">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label>Replace with</label>
-                            <input type="text" id="fnameReplace" value="AA1">
+
+                        <div id="literalFields" class="form-row hidden">
+                            <div class="form-group">
+                                <label>New Filename (Global)</label>
+                                <input type="text" id="fnameGlobal" value="DATA">
+                            </div>
                         </div>
-                    </div>
 
-                    <div id="literalFields" class="form-row hidden">
-                        <div class="form-group">
-                            <label>New Filename (Global)</label>
-                            <input type="text" id="fnameGlobal" value="DATA">
+                        <div class="form-row mt-2">
+                            <div class="form-group">
+                                <label>Data Folder (Global)</label>
+                                <input type="text" id="dataFolder" value="./data">
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="form-row mt-2">
+                        <hr class="divider mt-2 mb-2">
+
+                        <!-- 🌀 Pixels -->
+                        <div class="group-title">2. Pixels (Global Override)</div>
                         <div class="form-group">
-                            <label>Data Folder (Global)</label>
-                            <input type="text" id="dataFolder" value="./data">
+                            <label>Pixel Sequence (e.g. 1-6 or 1,2,8)</label>
+                            <input type="text" id="pixelOverride" value="1-6">
                         </div>
-                    </div>
 
-                    <hr class="divider mt-2 mb-2">
+                        <hr class="divider mt-2 mb-2">
 
-                    <!-- 🌀 Pixels -->
-                    <div class="group-title">2. Pixels (Global Override)</div>
-                    <div class="form-group">
-                        <label>Pixel Sequence (e.g. 1-6 or 1,2,8)</label>
-                        <input type="text" id="pixelOverride" value="1-6">
-                    </div>
-
-                    <hr class="divider mt-2 mb-2">
-
-                    <!-- 💡 Light Source -->
-                    <div class="group-title">3. Light Source Override</div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Mode</label>
-                            <select id="lightMode" onchange="toggleLightMode()">
-                                <option value="current">Current (A)</option>
-                                <option value="irradiance">Irradiance (W/cm²)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div id="lightCurrentGroup">
-                        <div class="form-group">
-                            <label>LED Current (A)</label>
-                            <input type="number" id="lightCurrent" value="0.001" step="0.0001">
-                        </div>
-                    </div>
-
-                    <div id="lightIrradianceGroup" class="hidden">
+                        <!-- 💡 Light Source -->
+                        <div class="group-title">3. Light Source Override</div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label>Calibration File</label>
-                                <select id="calFile" onchange="loadCalData()"></select>
-                            </div>
-                            <div class="form-group">
-                                <label>Target (W/cm²)</label>
-                                <input type="number" id="targetIrr" value="0.001" step="0.0001"
-                                    oninput="calculateCurrent()">
+                                <label>Mode</label>
+                                <select id="lightMode" onchange="toggleLightMode()">
+                                    <option value="current">Current (A)</option>
+                                    <option value="irradiance">Irradiance (W/cm²)</option>
+                                </select>
                             </div>
                         </div>
-                        <div id="calResult" class="text-success text-small font-bold"></div>
+
+                        <div id="lightCurrentGroup">
+                            <div class="form-group">
+                                <label>LED Current (A)</label>
+                                <input type="number" id="lightCurrent" value="0.001" step="0.0001">
+                            </div>
+                        </div>
+
+                        <div id="lightIrradianceGroup" class="hidden">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Calibration File</label>
+                                    <select id="calFile" onchange="loadCalData()"></select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Target (W/cm²)</label>
+                                    <input type="number" id="targetIrr" value="0.001" step="0.0001"
+                                        oninput="calculateCurrent()">
+                                </div>
+                            </div>
+                            <div id="calResult" class="text-success text-small font-bold"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -490,6 +517,14 @@
                     document.getElementById('pixelOverride').value = seq.join(',');
                 }
             }
+        }
+
+        // --- UI Initialization ---
+        function toggleSetup() {
+            const section = document.getElementById('setupSection');
+            const icon = document.getElementById('setupToggleIcon');
+            section.classList.toggle('collapsed');
+            icon.textContent = section.classList.contains('collapsed') ? '▶' : '▼';
         }
 
         // --- Overrides Logic ---
@@ -652,6 +687,16 @@
             document.getElementById('valState').textContent = status.state;
             document.getElementById('valDuration').textContent = status.run_duration_seconds.toFixed(1) + 's';
 
+            // Update Progress
+            if (status.total_steps > 0) {
+                const percent = Math.round((status.steps_completed / status.total_steps) * 100);
+                document.getElementById('valProgress').textContent = percent + '%';
+                document.getElementById('progressBar').style.width = percent + '%';
+            } else {
+                document.getElementById('valProgress').textContent = '0%';
+                document.getElementById('progressBar').style.width = '0%';
+            }
+
             if (status.state === 'COMPLETE' || status.state === 'ERROR' || status.state === 'IDLE') {
                 isRunning = false;
                 document.getElementById('btnRun').disabled = false;
@@ -718,7 +763,7 @@
                     maintainAspectRatio: false,
                     animation: false,
                     scales: {
-                        x: { title: { display: true, text: 'Points', color: '#888' }, grid: { color: '#333' } },
+                        x: { type: 'linear', title: { display: true, text: 'Points', color: '#888' }, grid: { color: '#333' } },
                         y: { title: { display: true, text: 'Current (A)', color: '#888' }, grid: { color: '#333' } }
                     }
                 }
