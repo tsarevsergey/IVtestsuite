@@ -122,3 +122,31 @@ async def set_relay(request: SetRelayRequest):
 async def all_relays_off():
     """Turn all relays off on all boards (safe state)."""
     return get_relay_controller().all_off()
+
+
+@router.get("/config")
+async def get_relay_config():
+    """Get current relay configuration (scheme, ports, wavelengths)."""
+    return get_relay_controller().get_config()
+
+
+@router.get("/wavelengths")
+async def get_wavelengths():
+    """Get LED wavelength mapping."""
+    return get_relay_controller().get_wavelengths()
+
+
+@router.get("/active")
+async def get_active_relays():
+    """Get currently active (ON) relays on each board."""
+    return get_relay_controller().get_active_relays()
+
+
+@router.post("/safe-disconnect")
+async def safe_disconnect():
+    """
+    Safely disconnect from all relay boards.
+    Turns all relays OFF before closing serial ports.
+    """
+    return get_relay_controller().safe_disconnect()
+

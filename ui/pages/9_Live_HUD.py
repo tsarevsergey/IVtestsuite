@@ -369,18 +369,31 @@ with col_left:
     st.markdown('<div class="industrial-panel" style="margin-top:1rem;">', unsafe_allow_html=True)
     st.markdown('<div class="panel-title">Illumination Control</div>', unsafe_allow_html=True)
 
+    # Get wavelength mapping from API (with fallback defaults)
+    wavelength_map = {"0": "None", "1": "461 nm (Blue)", "2": "626 nm (Red)", "3": "522 nm (Green)"}
+    try:
+        resp = api_call("GET", "/relays/wavelengths", timeout=1)
+        if resp and resp.status_code == 200:
+            wavelength_map = resp.json()
+    except:
+        pass
+    
+    # Build dropdown options: [label] -> relay_num
+    wavelength_options = [wavelength_map.get(str(i), f"LED {i}") for i in range(4)]
+
     i1, i2 = st.columns(2)
     with i1:
-        led_relay_label = st.selectbox("Wavelength", ["None", "LED 1", "LED 2"], index=1, key="led_wave")
+        led_relay_label = st.selectbox("Wavelength", wavelength_options, index=1, key="led_wave")
         led_cur = st.number_input("Current (A)", value=0.010, format="%.3f", step=0.001, key="led_cur")
     with i2:
         led_smu = st.selectbox("Driver SMU", [1, 2], index=0, key="led_smu")
         led_lim = st.number_input("Limit (V)", value=9.0, step=0.5, key="led_lim")
 
     if st.button("SET LED CONFIGURATION", key="set_led_cfg", use_container_width=True):
-        idx = 0 if led_relay_label == "LED 1" else 1 if led_relay_label == "LED 2" else -1
-        if idx >= 0:
-            api_call("POST", "/relays/led", json={"channel_id": idx})
+        # Find relay index from selected wavelength label
+        led_relay_idx = wavelength_options.index(led_relay_label) if led_relay_label in wavelength_options else 0
+        if led_relay_idx > 0:  # 0 = None (no relay)
+            api_call("POST", "/relays/led", json={"channel_id": led_relay_idx - 1})  # API is 0-indexed
         api_call("POST", "/smu/configure", json={"channel": led_smu, "compliance": led_lim, "compliance_type": "VOLT"})
         api_call("POST", "/smu/source-mode", json={"channel": led_smu, "mode": "CURR"})
         api_call("POST", "/smu/set", json={"channel": led_smu, "value": led_cur})

@@ -3,18 +3,21 @@ Arduino Relay Controller - LabVIEW-Compatible Protocol.
 
 Controls relay boards via Arduino serial with protocol:
 - Commands 1-12: Turn relay OFF
-- Commands 101-112: Turn relay ON
+- Commands 101-112: Turn relay ON (Pixel) or 11-18 (RGB)
 - Baud rate: 112500
 
 Supports:
-- Pixel selection Arduino (COM38, 6 relays)
-- RGB/LED selection Arduino (COM39, 3 relays)
+- Pixel selection Arduino (COM38, 6 relays, on_offset=100)
+- RGB/LED selection Arduino (COM39, 8 relays, on_offset=10)
 - Mock mode for development without hardware
+- Configuration via relay_config.json
 
 NOTE: Future support for HID-based relay boards will be added.
       The backend router will select the appropriate driver based on config.
 """
 import threading
+import json
+from pathlib import Path
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict
@@ -23,6 +26,9 @@ import time
 from .logging_config import get_logger
 
 logger = get_logger("arduino_relays")
+
+# Config file path (relative to project root)
+CONFIG_FILE = Path(__file__).parent.parent / "relay_config.json"
 
 
 # =============================================================================
@@ -326,6 +332,23 @@ class ArduinoRelayController:
         self._selected_pixel: Optional[int] = None
         self._selected_led_channel: Optional[int] = None
         
+        # Load wavelength mapping from config file
+        self._wavelengths = {
+            "0": "None",
+            "1": "461 nm (Blue)",
+            "2": "626 nm (Red)",
+            "3": "522 nm (Green)"
+        }
+        try:
+            if CONFIG_FILE.exists():
+                with open(CONFIG_FILE, "r") as f:
+                    config = json.load(f)
+                    if "led" in config and "wavelengths" in config["led"]:
+                        self._wavelengths = config["led"]["wavelengths"]
+                        logger.info(f"Loaded wavelengths from config: {self._wavelengths}")
+        except Exception as e:
+            logger.warning(f"Could not load wavelengths from config: {e}")
+        
         logger.info(f"ArduinoRelayController initialized (mock={mock})")
     
     def connect(self, port: Optional[str] = None, mock: Optional[bool] = None) -> Dict:
@@ -488,6 +511,70 @@ class ArduinoRelayController:
             "selected_led_channel": self._selected_led_channel,
             "pixel_board": self.pixel_board.get_status(),
             "rgb_board": self.rgb_board.get_status()
+        }
+    
+    def get_active_relays(self) -> Dict:
+        """Get currently active (ON) relays on each board."""
+        pixel_active = [k for k, v in self.pixel_board.relay_states.items() if v == RelayState.ON]
+        led_active = [k for k, v in self.rgb_board.relay_states.items() if v == RelayState.ON]
+        return {
+            "pixel": pixel_active,
+            "led": led_active,
+            "selected_pixel": self._selected_pixel,
+            "selected_led_channel": self._selected_led_channel
+        }
+    
+    def get_wavelengths(self) -> Dict:
+        """Get LED wavelength mapping from config."""
+        return self._wavelengths
+    
+    def get_wavelength_label(self, led_channel: int) -> str:
+        """Get wavelength label for LED channel (0-indexed)."""
+        # LED channels are 0-indexed in API, but 1-indexed in relay commands
+        relay_num = led_channel + 1 if led_channel >= 0 else 0
+        return self._wavelengths.get(str(relay_num), f"LED {relay_num}")
+    
+    def safe_disconnect(self) -> Dict:
+        """Safely disconnect: turn all relays OFF, then close serial ports."""
+        with self._lock:
+            # Turn off all relays first
+            pixel_off = self.pixel_board.all_off()
+            rgb_off = self.rgb_board.all_off()
+            
+            # Disconnect
+            pixel_disc = self.pixel_board.disconnect()
+            rgb_disc = self.rgb_board.disconnect()
+            
+            self._selected_pixel = None
+            self._selected_led_channel = None
+            
+            logger.info("Safe disconnect complete - all relays off, ports closed")
+            return {
+                "success": True,
+                "message": "Safe disconnect complete",
+                "pixel_off": pixel_off,
+                "rgb_off": rgb_off,
+                "pixel_disconnect": pixel_disc,
+                "rgb_disconnect": rgb_disc
+            }
+    
+    def get_config(self) -> Dict:
+        """Get current relay configuration."""
+        return {
+            "scheme": "arduino",
+            "pixel": {
+                "port": self.pixel_board.port,
+                "connected": self.pixel_board._connected,
+                "num_relays": self.pixel_board.num_relays,
+                "on_offset": self.pixel_board.on_offset
+            },
+            "led": {
+                "port": self.rgb_board.port,
+                "connected": self.rgb_board._connected,
+                "num_relays": self.rgb_board.num_relays,
+                "on_offset": self.rgb_board.on_offset,
+                "wavelengths": self._wavelengths
+            }
         }
 
 
