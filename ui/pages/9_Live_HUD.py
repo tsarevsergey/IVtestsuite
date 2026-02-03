@@ -276,15 +276,29 @@ with h1:
         unsafe_allow_html=True,
     )
 with h2:
-    # Optional "STOP ALL" like the React HUD (no backend endpoint specified in your code)
-    if st.button("STOP ALL", key="stop_all", use_container_width=True):
-        # Best-effort: turn off both SMUs, stop monitoring, LED off
+    # STOP ALL - turn off outputs and disconnect relays safely
+    if st.button("🛑 STOP ALL", key="stop_all", use_container_width=True, type="primary"):
+        # Stop monitoring
         st.session_state.monitoring = False
         st.session_state.monitor_configured = False
         st.session_state.led_state = False
+        
+        # Turn off both SMU outputs
         api_call("POST", "/smu/output", json={"channel": 1, "enabled": False})
         api_call("POST", "/smu/output", json={"channel": 2, "enabled": False})
-        st.toast("STOP ALL issued (outputs off)")
+        
+        # Safe disconnect relays (turns all OFF then disconnects)
+        api_call("POST", "/relays/safe-disconnect", timeout=5)
+        
+        # Reset connection states
+        st.session_state.conn_smu1 = False
+        st.session_state.conn_smu2 = False
+        st.session_state.conn_relays = False
+        st.session_state.selected_pixel = None
+        st.session_state.selected_led = 0
+        
+        st.toast("STOP ALL: Outputs off, relays disconnected")
+        st.rerun()
 
 # ----------------------------
 # SYSTEM CONNECTIONS PANEL
@@ -374,17 +388,9 @@ with col_left:
     st.markdown('<div class="industrial-panel" style="margin-top:1rem;">', unsafe_allow_html=True)
     st.markdown('<div class="panel-title">Illumination Control</div>', unsafe_allow_html=True)
 
-    # Get wavelength mapping from API (with fallback defaults - keys 1-4)
-    wavelength_map = {"1": "None", "2": "461 nm (Blue)", "3": "626 nm (Red)", "4": "522 nm (Green)"}
-    try:
-        resp = api_call("GET", "/relays/wavelengths", timeout=1)
-        if resp and resp.status_code == 200:
-            wavelength_map = resp.json()
-    except:
-        pass
-    
-    # Build dropdown options: keys 1-4 -> [label]
-    wavelength_options = [wavelength_map.get(str(i), f"LED {i}") for i in range(1, 5)]  # 1-4
+    # Static wavelength options (no API call needed - use config defaults)
+    # LED relays: 1=None, 2=461nm (Blue), 3=626nm (Red), 4=522nm (Green)
+    wavelength_options = ["None", "461 nm (Blue)", "626 nm (Red)", "522 nm (Green)"]  # Index 0-3 -> Relay 1-4
 
     i1, i2 = st.columns(2)
     with i1:
