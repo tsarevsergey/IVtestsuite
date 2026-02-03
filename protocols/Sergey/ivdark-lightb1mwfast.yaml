@@ -1,4 +1,4 @@
-name: Dark-Light_IVdarkLight1B1mwfast
+name: IVdark-lightB1mWFAST
 description: Batch sweep on pixels 1-6. dark_first.
 version: 2
 steps:
@@ -12,7 +12,7 @@ steps:
     mock: false
 - action: relays/connect
   params:
-    mock: false
+    mock: true
 - action: relays/all-off
 - action: relays/led
   params:
@@ -40,7 +40,17 @@ steps:
       pixel_id: $pixel
   - action: wait
     params:
-      seconds: 0.5
+      seconds: 0.1
+  - action: smu/configure
+    params:
+      channel: 2
+      compliance: 0.1
+      compliance_type: CURR
+      nplc: 1
+  - action: smu/source-mode
+    params:
+      channel: 2
+      mode: VOLT
   - action: smu/sweep
     params:
       channel: 2
@@ -48,20 +58,30 @@ steps:
       stop: 1
       points: 11
       delay: 0.05
-      sweep_type: double
+      sweep_type: single
       direction: forward
       keep_output_on: false
     capture_as: dark_iv_data
   - action: data/save
     params:
       data: $dark_iv_data
-      filename: IVdarkLight1B1mwfast_{$pixel}DARK
+      filename: TEST_{$pixel}DARK
 - action: relays/led
   params:
     channel_id: 1
 - action: wait
   params:
     seconds: 1
+- action: smu/configure
+  params:
+    channel: 1
+    compliance: 9
+    compliance_type: VOLT
+    nplc: 1
+- action: smu/source-mode
+  params:
+    channel: 1
+    mode: CURR
 - action: smu/set
   params:
     channel: 1
@@ -89,7 +109,17 @@ steps:
       pixel_id: $pixel
   - action: wait
     params:
-      seconds: 0.5
+      seconds: 0.1
+  - action: smu/configure
+    params:
+      channel: 2
+      compliance: 0.1
+      compliance_type: CURR
+      nplc: 1
+  - action: smu/source-mode
+    params:
+      channel: 2
+      mode: VOLT
   - action: smu/sweep
     params:
       channel: 2
@@ -97,14 +127,14 @@ steps:
       stop: 1
       points: 11
       delay: 0.05
-      sweep_type: double
+      sweep_type: single
       direction: forward
       keep_output_on: false
     capture_as: light_iv_data
   - action: data/save
     params:
       data: $light_iv_data
-      filename: IVdarkLight1B1mwfast_{$pixel}LIGHT
+      filename: TEST_{$pixel}LIGHT
 - action: smu/output
   params:
     channel: 2

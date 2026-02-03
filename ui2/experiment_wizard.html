@@ -258,21 +258,66 @@
                             </div>
                         </div>
 
-                        <!-- Light Channel only for batch -->
+                        <!-- Full channel config - only for batch -->
                         <div id="lightHwFields" class="hidden">
+                            <div class="group-title mt-2">📊 Sweep Channel (Primary)</div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Sweep Channel</label>
+                                    <label>Channel</label>
                                     <select id="sweep_channel">
                                         <option value="1">CH 1</option>
                                         <option value="2" selected>CH 2</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label>Light Channel</label>
+                                    <label>Source Mode</label>
+                                    <select id="sweep_mode">
+                                        <option value="VOLT" selected>VOLT</option>
+                                        <option value="CURR">CURR</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Compliance</label>
+                                    <input type="number" id="sweep_compliance" value="0.1" step="0.001">
+                                </div>
+                                <div class="form-group">
+                                    <label>Compliance Type</label>
+                                    <select id="sweep_compliance_type">
+                                        <option value="CURR" selected>CURR</option>
+                                        <option value="VOLT">VOLT</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="group-title mt-2">💡 Bias/Light Channel (Secondary)</div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Channel</label>
                                     <select id="light_channel">
                                         <option value="1" selected>CH 1</option>
                                         <option value="2">CH 2</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Source Mode</label>
+                                    <select id="bias_mode">
+                                        <option value="VOLT">VOLT</option>
+                                        <option value="CURR" selected>CURR</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Compliance</label>
+                                    <input type="number" id="bias_compliance" value="9.0" step="0.1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Compliance Type</label>
+                                    <select id="bias_compliance_type">
+                                        <option value="VOLT" selected>VOLT</option>
+                                        <option value="CURR">CURR</option>
                                     </select>
                                 </div>
                             </div>
@@ -476,8 +521,14 @@
                 // Hw
                 compliance: parseFloat(document.getElementById('compliance').value),
                 nplc: parseFloat(document.getElementById('nplc').value),
-                sweep_channel: parseInt(document.getElementById('sweep_channel')?.value || 1),
-                light_channel: parseInt(document.getElementById('light_channel')?.value || 2),
+                sweep_channel: parseInt(document.getElementById('sweep_channel')?.value || 2),
+                sweep_mode: document.getElementById('sweep_mode')?.value || 'VOLT',
+                sweep_compliance: parseFloat(document.getElementById('sweep_compliance')?.value || 0.1),
+                sweep_compliance_type: document.getElementById('sweep_compliance_type')?.value || 'CURR',
+                light_channel: parseInt(document.getElementById('light_channel')?.value || 1),
+                bias_mode: document.getElementById('bias_mode')?.value || 'CURR',
+                bias_compliance: parseFloat(document.getElementById('bias_compliance')?.value || 9.0),
+                bias_compliance_type: document.getElementById('bias_compliance_type')?.value || 'VOLT',
                 light_current: parseFloat(document.getElementById('light_current').value),
                 led_wavelength: parseInt(document.getElementById('led_wavelength')?.value || 0)
             };
@@ -564,6 +615,9 @@
 
                 if (p.enable_steady_state) {
                     const points = Math.max(1, Math.floor(p.steady_time / p.steady_delay));
+                    // Configure sweep channel before steady state
+                    loopSteps.push({ action: 'smu/configure', params: { channel: p.sweep_channel, compliance: p.sweep_compliance, compliance_type: p.sweep_compliance_type, nplc: p.nplc } });
+                    loopSteps.push({ action: 'smu/source-mode', params: { channel: p.sweep_channel, mode: p.sweep_mode } });
                     loopSteps.push({
                         action: 'smu/sweep',
                         params: {
@@ -578,6 +632,9 @@
                     });
                 }
 
+                // Configure sweep channel before IV sweep
+                loopSteps.push({ action: 'smu/configure', params: { channel: p.sweep_channel, compliance: p.sweep_compliance, compliance_type: p.sweep_compliance_type, nplc: p.nplc } });
+                loopSteps.push({ action: 'smu/source-mode', params: { channel: p.sweep_channel, mode: p.sweep_mode } });
                 loopSteps.push({
                     action: 'smu/sweep',
                     params: {
@@ -613,6 +670,9 @@
                 blockLight.push({ action: 'relays/led', params: { channel_id: p.led_wavelength - 1 } });
                 blockLight.push({ action: 'wait', params: { seconds: 1.0 } });
             }
+            // Configure bias channel using UI parameters
+            blockLight.push({ action: 'smu/configure', params: { channel: p.light_channel, compliance: p.bias_compliance, compliance_type: p.bias_compliance_type, nplc: p.nplc } });
+            blockLight.push({ action: 'smu/source-mode', params: { channel: p.light_channel, mode: p.bias_mode } });
             blockLight.push({ action: 'smu/set', params: { channel: p.light_channel, value: p.light_current } });
             blockLight.push({ action: 'smu/output', params: { channel: p.light_channel, enabled: true } });
             blockLight.push({ action: 'wait', params: { seconds: 2.0 } });
