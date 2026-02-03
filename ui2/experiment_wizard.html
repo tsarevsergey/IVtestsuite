@@ -145,7 +145,11 @@
                 <div class="config-grid">
                     <!-- Column 1: Sample & Core Sweep -->
                     <div class="form-section">
-                        <div class="group-title">📦 Sample & Pixels</div>
+                        <div class="group-title">📦 Protocol & Sample</div>
+                        <div class="form-group mb-1">
+                            <label>Protocol Name</label>
+                            <input type="text" id="protocol_name" value="My New Protocol">
+                        </div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Sample Name</label>
@@ -278,6 +282,17 @@
                     <!-- Column 3: Light Source -->
                     <div class="form-section" id="lightSourceSection">
                         <div class="group-title">💡 Light Source (Bias Channel)</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>LED Wavelength</label>
+                                <select id="led_wavelength">
+                                    <option value="0">None</option>
+                                    <option value="2" selected>Blue (461nm)</option>
+                                    <option value="3">Red (626nm)</option>
+                                    <option value="4">Green (522nm)</option>
+                                </select>
+                            </div>
+                        </div>
                         <div class="form-group mb-2">
                             <label>Input Mode</label>
                             <div class="btn-row-2">
@@ -439,6 +454,7 @@
 
         function getParams() {
             return {
+                protocol_name: document.getElementById('protocol_name').value,
                 sample_name: document.getElementById('sample_name').value,
                 pixel_str: document.getElementById('pixel_str').value,
                 start_v: parseFloat(document.getElementById('start_v').value),
@@ -462,7 +478,8 @@
                 nplc: parseFloat(document.getElementById('nplc').value),
                 sweep_channel: parseInt(document.getElementById('sweep_channel')?.value || 1),
                 light_channel: parseInt(document.getElementById('light_channel')?.value || 2),
-                light_current: parseFloat(document.getElementById('light_current').value)
+                light_current: parseFloat(document.getElementById('light_current').value),
+                led_wavelength: parseInt(document.getElementById('led_wavelength')?.value || 0)
             };
         }
 
@@ -497,7 +514,7 @@
 
         function generateMultipixelIV(p, pixels) {
             return {
-                name: `Multipixel Sweep - ${p.sample_name}`,
+                name: p.protocol_name,
                 description: `IV sweep on pixels ${p.pixel_str}. ${p.start_v}V to ${p.stop_v}V.`,
                 version: 1.2,
                 steps: [
@@ -582,15 +599,23 @@
                 };
             };
 
-            const blockDark = [
-                { action: 'smu/output', params: { channel: p.light_channel, enabled: false } }
-            ];
+            const blockDark = [];
+            // Turn off LED relay if wavelength was set
+            if (p.led_wavelength > 0) {
+                blockDark.push({ action: 'relays/led', params: { channel_id: 0 } });
+                blockDark.push({ action: 'wait', params: { seconds: 1.0 } });
+            }
+            blockDark.push({ action: 'smu/output', params: { channel: p.light_channel, enabled: false } });
 
-            const blockLight = [
-                { action: 'smu/set', params: { channel: p.light_channel, value: p.light_current } },
-                { action: 'smu/output', params: { channel: p.light_channel, enabled: true } },
-                { action: 'wait', params: { seconds: 2.0 } }
-            ];
+            const blockLight = [];
+            // Turn on LED relay for selected wavelength
+            if (p.led_wavelength > 0) {
+                blockLight.push({ action: 'relays/led', params: { channel_id: p.led_wavelength - 1 } });
+                blockLight.push({ action: 'wait', params: { seconds: 1.0 } });
+            }
+            blockLight.push({ action: 'smu/set', params: { channel: p.light_channel, value: p.light_current } });
+            blockLight.push({ action: 'smu/output', params: { channel: p.light_channel, enabled: true } });
+            blockLight.push({ action: 'wait', params: { seconds: 2.0 } });
 
             const steps = [
                 { action: 'smu/connect', params: { channel: 1, mock: false } },
@@ -612,7 +637,7 @@
             );
 
             return {
-                name: `${darkFirst ? 'Dark-Light' : 'Light-Dark'}_${p.sample_name}`,
+                name: p.protocol_name,
                 description: `Batch sweep on pixels ${p.pixel_str}. ${order}.`,
                 version: 2.0,
                 steps: steps
