@@ -646,7 +646,27 @@ class ProtocolEngine:
         
         if not results:
             return {"success": False, "message": "No data to save"}
+
+        # --- Refine IV Data Format ---
+        # 1. Columns to exclude
+        exclude = {"set_voltage", "set_value", "channel", "aborted", "points", "success"}
         
+        # 2. Filter rows
+        filtered_results = []
+        for row in results:
+            filtered_results.append({k: v for k, v in row.items() if k not in exclude})
+        results = filtered_results
+
+        # 3. Determine and order keys (ensure voltage, current are first)
+        all_keys = set()
+        for row in results:
+            all_keys.update(row.keys())
+        
+        preferred_order = ["voltage", "current"]
+        remaining_keys = sorted([k for k in all_keys if k not in preferred_order])
+        ordered_keys = [k for k in preferred_order if k in all_keys] + remaining_keys
+        
+        # --- File Handling ---
         # Ensure folder exists
         folder_path = Path(folder)
         folder_path.mkdir(parents=True, exist_ok=True)
@@ -672,13 +692,12 @@ class ProtocolEngine:
                 counter += 1
         
         # Write CSV
-        keys = list(results[0].keys()) if results else []
         with open(filepath, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=keys)
+            writer = csv.DictWriter(f, fieldnames=ordered_keys)
             writer.writeheader()
             writer.writerows(results)
         
-        logger.info(f"Saved {len(results)} rows to {filepath}")
+        logger.info(f"Saved {len(results)} rows to {filepath} with columns: {ordered_keys}")
         return {"success": True, "filepath": str(filepath), "rows": len(results)}
 
 

@@ -370,6 +370,63 @@
         .mock-toggle input {
             accent-color: var(--accent-cyan);
         }
+
+        /* Detailed Relay Indicators */
+        .relay-sub-group {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-right: 12px;
+            padding: 0 8px;
+            border-left: 1px solid var(--border-color);
+        }
+
+        .sub-label {
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-right: 4px;
+        }
+
+        .indicator {
+            width: 10px;
+            height: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.2);
+            transition: all 0.2s ease;
+        }
+
+        /* Square for Pixels */
+        .indicator.pixel-sub {
+            border-radius: 2px;
+        }
+
+        /* Circle for LEDs */
+        .indicator.led-sub {
+            border-radius: 50%;
+        }
+
+        /* Electric Blue ON state (Default) */
+        .indicator.on {
+            background: #00d4ff;
+            border-color: #00d4ff;
+            box-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
+        }
+
+        /* Red ON state */
+        .indicator.on.red {
+            background: #ff4444;
+            border-color: #ff4444;
+            box-shadow: 0 0 8px rgba(255, 68, 68, 0.6);
+        }
+
+        /* Green ON state */
+        .indicator.on.green {
+            background: #00ff66;
+            border-color: #00ff66;
+            box-shadow: 0 0 8px rgba(0, 255, 102, 0.6);
+        }
     </style>
 </head>
 
@@ -485,9 +542,29 @@
                     <div class="led" id="smu2Led"></div>
                     <span>SMU2</span>
                 </div>
-                <div class="status-item">
+                <div class="status-item"
+                    style="border-right: 1px solid var(--border-color); padding-right: 12px; margin-right: 8px;">
                     <div class="led" id="relayLed"></div>
                     <span>Relays</span>
+                </div>
+
+                <!-- Pixel Relay sub-indicators (1-6) -->
+                <div class="relay-sub-group">
+                    <span class="sub-label">Pixel</span>
+                    <div id="subP1" class="indicator pixel-sub" title="Pixel 1"></div>
+                    <div id="subP2" class="indicator pixel-sub" title="Pixel 2"></div>
+                    <div id="subP3" class="indicator pixel-sub" title="Pixel 3"></div>
+                    <div id="subP4" class="indicator pixel-sub" title="Pixel 4"></div>
+                    <div id="subP5" class="indicator pixel-sub" title="Pixel 5"></div>
+                    <div id="subP6" class="indicator pixel-sub" title="Pixel 6"></div>
+                </div>
+
+                <!-- LED Relay sub-indicators (2,3,4) -->
+                <div class="relay-sub-group" style="border-left: none;">
+                    <span class="sub-label">LED</span>
+                    <div id="subL2" class="indicator led-sub" title="LED 2"></div>
+                    <div id="subL3" class="indicator led-sub red" title="LED 3"></div>
+                    <div id="subL4" class="indicator led-sub green" title="LED 4"></div>
                 </div>
             </div>
         </div>
@@ -552,9 +629,28 @@
 
                     // Update sidebar
                     btnRelay.classList.toggle('ok-alt', !!isRelayOk);
+
+                    // Update sub-indicators if connected
+                    if (isRelayOk && relayStatus.pixel_board && relayStatus.rgb_board) {
+                        const pStates = relayStatus.pixel_board.relay_states || {};
+                        const lStates = relayStatus.rgb_board.relay_states || {};
+
+                        for (let i = 1; i <= 6; i++) {
+                            const el = document.getElementById(`subP${i}`);
+                            if (el) el.classList.toggle('on', pStates[i] === 'ON');
+                        }
+                        for (let i = 2; i <= 4; i++) {
+                            const el = document.getElementById(`subL${i}`);
+                            if (el) el.classList.toggle('on', lStates[i] === 'ON');
+                        }
+                    } else {
+                        // Reset all to off
+                        document.querySelectorAll('.indicator').forEach(el => el.classList.remove('on'));
+                    }
                 } catch (e) {
                     relayLed.className = 'led';
                     btnRelay.classList.remove('ok-alt');
+                    document.querySelectorAll('.indicator').forEach(el => el.classList.remove('on'));
                 }
             } catch (e) {
                 // System down
@@ -651,7 +747,7 @@
         document.querySelector('.nav-link').classList.add('active');
         updateUserUI();
         checkStatus();
-        setInterval(checkStatus, 2000);
+        setInterval(checkStatus, 5000);
     </script>
 </body>
 
