@@ -261,6 +261,12 @@
             initChart();
             await checkConnection();
             await loadProtocols();
+
+            const user = UI2.getCurrentUser();
+            if (user) {
+                document.getElementById('dataFolder').value = `./data/${user}`;
+            }
+
             Utils.log('logBox', 'Protocol Runner initialized');
         });
 
@@ -292,6 +298,7 @@
         // Render protocol list
         function renderProtocolList() {
             const list = document.getElementById('protocolList');
+            const currentUser = UI2.getCurrentUser();
 
             if (protocols.length === 0) {
                 list.innerHTML = '<div class="text-muted text-center">No protocols found</div>';
@@ -306,9 +313,20 @@
                 grouped[folder].push(p);
             }
 
+            // Sort folders: Current User first, then Root, then others
+            const folders = Object.keys(grouped).sort((a, b) => {
+                if (a === currentUser) return -1;
+                if (b === currentUser) return 1;
+                if (a === 'Root') return -1;
+                if (b === 'Root') return 1;
+                return a.localeCompare(b);
+            });
+
             let html = '';
-            for (const [folder, items] of Object.entries(grouped)) {
-                html += `<div class="text-small text-muted mb-1 mt-2">${folder}</div>`;
+            for (const folder of folders) {
+                const items = grouped[folder];
+                const isUser = folder === currentUser;
+                html += `<div class="text-small text-muted mb-1 mt-2">${isUser ? '✨ ' : ''}${folder}${isUser ? ' (You)' : ''}</div>`;
                 for (const p of items) {
                     const name = p.name || p.id.split('/').pop();
                     html += `

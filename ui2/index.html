@@ -45,6 +45,7 @@
             font-weight: 700;
             background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 2rem;
             padding: 0.5rem 0;
@@ -145,10 +146,173 @@
             font-size: 0.7rem;
             color: var(--text-secondary);
         }
+
+        /* User Profile & Login */
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem 0;
+            border-top: 1px solid var(--border-color);
+            margin-top: 1rem;
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--bg-panel);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--accent-cyan);
+            font-size: 0.9rem;
+        }
+
+        .user-info {
+            flex: 1;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .user-info .name {
+            font-weight: 600;
+        }
+
+        .btn-switch {
+            font-size: 0.7rem;
+            color: var(--accent-cyan);
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .login-card {
+            background: var(--bg-panel);
+            padding: 2.5rem;
+            border-radius: 12px;
+            width: 400px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .login-card h2 {
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+
+        .login-card p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .user-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .user-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .user-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .user-item.selected {
+            color: var(--accent-cyan);
+            background: rgba(0, 212, 255, 0.05);
+        }
+
+        .input-group {
+            margin-bottom: 1rem;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.8rem;
+            margin-bottom: 0.35rem;
+            color: var(--text-secondary);
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: white;
+            outline: none;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--accent-cyan);
+        }
+
+        .btn-full {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 6px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--accent-cyan);
+            color: black;
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 
 <body>
+    <!-- Login Overlay -->
+    <div id="loginOverlay" class="overlay" style="display: none;">
+        <div class="login-card">
+            <h2>👤 User Selection</h2>
+            <p>Please select an existing profile or create a new one.</p>
+
+            <div id="userList" class="user-list">
+                <!-- Users here -->
+            </div>
+
+            <div class="input-group">
+                <label>Create New User</label>
+                <input type="text" id="newUserName" placeholder="Enter name...">
+            </div>
+            <button class="btn-full btn-primary" id="loginBtn" onclick="handleLogin()">Create & Login</button>
+        </div>
+    </div>
     <div class="sidebar">
         <div class="logo">⚡ SMU Control</div>
 
@@ -189,6 +353,17 @@
             <a href="relay_test.html" class="nav-link" target="pageFrame">
                 <span class="icon">🔌</span> Relay Test
             </a>
+            <a href="api_tester.html" class="nav-link" target="pageFrame">
+                <span class="icon">🧪</span> API Tester
+            </a>
+        </div>
+
+        <div class="user-profile">
+            <div class="avatar" id="userAvatar">A</div>
+            <div class="user-info">
+                <div class="name" id="currentUserName">Guest</div>
+                <div class="btn-switch" onclick="showLogin()">Switch User</div>
+            </div>
         </div>
     </div>
 
@@ -218,29 +393,78 @@
         </div>
     </div>
 
+    <script src="js/api.js"></script>
     <script>
-        const BACKEND_URL = 'http://localhost:5000';
-
         // Check backend status
         async function checkStatus() {
             try {
-                const resp = await fetch(`${BACKEND_URL}/status`);
-                const data = await resp.json();
+                const data = await UI2.getRunStatus();
+                if (data.error) throw new Error();
 
                 document.getElementById('backendLed').classList.add('ok');
 
-                if (data.smu && data.smu.connected) {
-                    document.getElementById('smuLed').classList.add('ok');
-                }
-                if (data.relays && data.relays.connected) {
-                    document.getElementById('relayLed').classList.add('ok');
-                }
+                // Hardware status (if available in backend status response)
+                // if (data.smu_connected) ...
             } catch (e) {
+                document.getElementById('backendLed').classList.remove('ok');
                 document.getElementById('backendLed').classList.add('error');
             }
         }
 
-        // Highlight active nav
+        // --- User System ---
+        async function showLogin() {
+            const overlay = document.getElementById('loginOverlay');
+            const listEl = document.getElementById('userList');
+            overlay.style.display = 'flex';
+
+            const users = await UI2.getUsers();
+            listEl.innerHTML = '';
+
+            if (users.length === 0) {
+                listEl.innerHTML = '<div style="padding:1rem; color:var(--text-secondary); text-align:center;">No existing users</div>';
+            } else {
+                users.forEach(user => {
+                    const item = document.createElement('div');
+                    item.className = 'user-item';
+                    item.innerHTML = `<span>👤</span> ${user}`;
+                    item.onclick = () => selectUser(user);
+                    listEl.appendChild(item);
+                });
+            }
+        }
+
+        async function selectUser(name) {
+            UI2.setCurrentUser(name);
+            updateUserUI();
+            document.getElementById('loginOverlay').style.display = 'none';
+            // Reload current frame to apply user context
+            const frame = document.querySelector('.page-frame');
+            frame.src = frame.src;
+        }
+
+        async function handleLogin() {
+            const name = document.getElementById('newUserName').value.trim();
+            if (!name) return alert('Enter a user name');
+
+            const res = await UI2.createUser(name);
+            if (res.success) {
+                selectUser(name);
+            } else {
+                alert(res.message);
+            }
+        }
+
+        function updateUserUI() {
+            const user = UI2.getCurrentUser();
+            if (user) {
+                document.getElementById('currentUserName').textContent = user;
+                document.getElementById('userAvatar').textContent = user[0].toUpperCase();
+            } else {
+                showLogin();
+            }
+        }
+
+        // --- Navigation ---
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', function () {
                 document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
@@ -251,6 +475,7 @@
 
         // Initial state
         document.querySelector('.nav-link').classList.add('active');
+        updateUserUI();
         checkStatus();
         setInterval(checkStatus, 5000);
     </script>

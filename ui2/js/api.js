@@ -109,20 +109,31 @@ async function getProtocolContent(protocolId) {
 }
 
 /**
- * Save protocol
- * @param {string} name - Protocol name
- * @param {object} content - Protocol YAML content
- * @param {string} folder - Folder name
- */
-async function saveProtocol(name, content, folder = 'Custom') {
-    return await api('POST', '/protocol/save', { name, content, folder });
-}
-
-/**
  * Get run status
  */
 async function getRunStatus() {
     return await api('GET', '/status');
+}
+
+/**
+ * User Management
+ */
+function getCurrentUser() {
+    return localStorage.getItem('smu_user');
+}
+
+function setCurrentUser(name) {
+    if (name) localStorage.setItem('smu_user', name);
+    else localStorage.removeItem('smu_user');
+}
+
+async function getUsers() {
+    const res = await api('GET', '/protocol/users');
+    return res.users || [];
+}
+
+async function createUser(name) {
+    return await api('POST', '/protocol/create-user', { name });
 }
 
 // Export for use in pages
@@ -137,6 +148,15 @@ window.UI2 = {
     runInlineProtocol,
     getProtocolList,
     getProtocolContent,
-    saveProtocol,
-    getRunStatus
+    saveProtocol: (name, content, folder) => {
+        // Default to current user folder if not provided
+        const user = getCurrentUser();
+        const targetFolder = folder || user || 'Custom';
+        return api('POST', '/protocol/save', { name, content, folder: targetFolder });
+    },
+    getRunStatus,
+    getCurrentUser,
+    setCurrentUser,
+    getUsers,
+    createUser
 };

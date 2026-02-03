@@ -137,6 +137,35 @@ class ProtocolLoader:
             del self._cache[name]
         return self.load(name)
     
+    async def save(self, name: str, data: Dict[str, Any], folder: str = "Custom") -> str:
+        """
+        Save a protocol definition to a YAML file.
+        
+        Args:
+            name: Filename (without extension)
+            data: Protocol data to save
+            folder: Subfolder within protocols directory
+            
+        Returns:
+            Absolute path to the saved file
+        """
+        target_dir = self.protocols_dir / folder
+        if not target_dir.exists():
+            target_dir.mkdir(parents=True, exist_ok=True)
+            
+        filepath = target_dir / f"{name}.yaml"
+        
+        with open(filepath, "w", encoding="utf-8") as f:
+            yaml.dump(data, f, sort_keys=False, default_flow_style=False)
+            
+        # Invalidate cache
+        rel_name = filepath.relative_to(self.protocols_dir).with_suffix("").as_posix()
+        if rel_name in self._cache:
+            del self._cache[rel_name]
+            
+        logger.info(f"Saved protocol: {rel_name} to {filepath}")
+        return str(filepath)
+
     def clear_cache(self):
         """Clear the protocol cache."""
         self._cache.clear()

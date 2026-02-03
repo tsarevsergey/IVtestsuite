@@ -254,8 +254,10 @@
                             <input type="text" id="protocolName" value="">
                         </div>
                         <div class="form-group">
-                            <label>Folder</label>
-                            <input type="text" id="protocolFolder" value="Custom">
+                            <label>Target User Folder</label>
+                            <div id="userFolderDisplay"
+                                style="padding: 0.75rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--accent-cyan); font-weight: 600;">
+                                -</div>
                         </div>
                     </div>
                     <div class="btn-row">
@@ -490,17 +492,19 @@
                 return;
             }
             document.getElementById('protocolName').value = generatedYaml.name || 'New Protocol';
+            const user = UI2.getCurrentUser();
+            document.getElementById('userFolderDisplay').textContent = user || 'Custom';
             document.getElementById('saveDialog').style.display = 'block';
         }
 
         async function confirmSave() {
             const name = document.getElementById('protocolName').value;
-            const folder = document.getElementById('protocolFolder').value;
+            const user = UI2.getCurrentUser() || 'Custom';
 
-            const result = await UI2.saveProtocol(name, generatedYaml, folder);
+            const result = await UI2.saveProtocol(name, generatedYaml, user);
 
-            if (result.success !== false) {
-                alert(`Saved: ${folder}/${name}.yaml`);
+            if (result.success || result.success !== false) {
+                alert(`Saved: ${user}/${name}.yaml`);
                 document.getElementById('saveDialog').style.display = 'none';
             } else {
                 alert(`Save failed: ${result.message}`);

@@ -351,6 +351,12 @@
                             </select>
                         </div>
                         <div class="form-group mb-0">
+                            <label class="text-small">NPLC</label>
+                            <input type="number" id="ivNPLC" value="1.0" step="0.1" class="text-small p-1">
+                        </div>
+                    </div>
+                    <div class="form-row gap-1 mb-2">
+                        <div class="form-group mb-0">
                             <label class="text-small">Type</label>
                             <select id="ivType" class="text-small p-1">
                                 <option value="double">Dbl</option>
@@ -365,10 +371,12 @@
                     <div class="divider"></div>
                     <div class="form-group mb-1">
                         <label class="text-small">Save Folder</label>
-                        <input type="text" id="ivFolder" value="./data" class="text-small p-1">
+                        <input type="text" id="ivFolder" value="./data" class="text-small p-1" style="width:100%">
                     </div>
                     <div class="form-group mb-1">
-                        <input type="text" id="ivFilename" placeholder="iv_scan_..." class="text-small p-1">
+                        <label class="text-small">Filename</label>
+                        <input type="text" id="ivFilename" placeholder="iv_scan_..." class="text-small p-1"
+                            style="width:100%">
                     </div>
                     <button class="btn btn-primary btn-compact" onclick="saveIVData()">💾 SAVE IV DATA</button>
                 </div>
@@ -392,7 +400,7 @@
                             <div class="flex-end gap-1">
                                 <div class="param-group">
                                     <span class="param-label">Channel</span>
-                                    <select id="monChannel" class="text-small p-1" style="width:70px">
+                                    <select id="monChannel" class="text-small p-1" style="width:100px">
                                         <option value="1">CH 1</option>
                                         <option value="2" selected>CH 2</option>
                                     </select>
@@ -400,17 +408,17 @@
                                 <div class="param-group">
                                     <span class="param-label">Bias (V)</span>
                                     <input type="number" id="monBias" value="0.0" step="0.1" class="text-small p-1"
-                                        style="width:60px">
+                                        style="width:90px">
                                 </div>
                                 <div class="param-group">
                                     <span class="param-label">NPLC</span>
                                     <input type="number" id="monNPLC" value="1.0" step="1.0" class="text-small p-1"
-                                        style="width:50px">
+                                        style="width:80px">
                                 </div>
                                 <div class="param-group">
                                     <span class="param-label">Rate (Hz)</span>
                                     <input type="number" id="monRate" value="10" min="1" max="50" class="text-small p-1"
-                                        style="width:50px">
+                                        style="width:80px">
                                 </div>
                                 <div class="flex-center mt-3">
                                     <button class="btn btn-primary btn-compact" style="width:auto; margin:0;"
@@ -438,10 +446,10 @@
 
                         <!-- Save Monitor Data -->
                         <div class="flex-end mt-2 gap-1 align-center">
-                            <input type="text" id="monFolder" value="./data" class="text-small p-1" style="width:100px"
+                            <input type="text" id="monFolder" value="./data" class="text-small p-1" style="width:150px"
                                 placeholder="Folder">
                             <input type="text" id="monFilename" placeholder="monitor_..." class="text-small p-1"
-                                style="width:150px">
+                                style="width:200px">
                             <button class="btn btn-primary btn-compact" style="width:auto; margin:0;"
                                 onclick="saveMonitorData()">💾 SAVE</button>
                         </div>
@@ -452,7 +460,14 @@
                 <div id="viewIv" class="view-section">
                     <div class="panel" style="position:relative;">
                         <div id="ivBusyOverlay" class="busy-overlay">MEASURING...</div>
-                        <div class="panel-title">Last IV Scan</div>
+                        <div class="flex-between mb-2">
+                            <div class="panel-title mb-0">Last IV Scan</div>
+                            <div class="flex-end">
+                                <label class="checkbox-label text-small">
+                                    <input type="checkbox" id="ivLogScale" onchange="toggleIvLogScale()"> Log Y Scale
+                                </label>
+                            </div>
+                        </div>
                         <div class="chart-wrapper">
                             <canvas id="ivChart"></canvas>
                         </div>
@@ -779,7 +794,9 @@
                 points: parseInt(document.getElementById('ivPoints').value),
                 sweep_type: document.getElementById('ivType').value,
                 scale: 'linear',
-                nplc: 0.1, delay: 0.01, compliance: 0.05
+                nplc: parseFloat(document.getElementById('ivNPLC').value) || 0.1,
+                delay: 0.01,
+                compliance: 0.05
             };
 
             const btn = document.getElementById('btnRunSweep');
@@ -812,6 +829,23 @@
 
         function plotIV(data) {
             ivChart.data.datasets[0].data = data.map(d => ({ x: d.voltage, y: d.current }));
+            ivChart.update();
+        }
+
+        function toggleIvLogScale() {
+            const isLog = document.getElementById('ivLogScale').checked;
+            ivChart.options.scales.y.type = isLog ? 'logarithmic' : 'linear';
+
+            // For log scale, ensure we only plot absolute values or non-zero positive
+            if (isLog && lastIVData) {
+                ivChart.data.datasets[0].data = lastIVData.map(d => ({
+                    x: d.voltage,
+                    y: Math.abs(d.current) || 1e-12
+                }));
+            } else if (lastIVData) {
+                ivChart.data.datasets[0].data = lastIVData.map(d => ({ x: d.voltage, y: d.current }));
+            }
+
             ivChart.update();
         }
 

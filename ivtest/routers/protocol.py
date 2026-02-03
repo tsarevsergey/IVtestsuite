@@ -33,6 +33,18 @@ class RunInlineRequest(BaseModel):
     skip_cleanup: bool = Field(default=False, description="Skip safety cleanup (keep outputs on)")
 
 
+class SaveProtocolRequest(BaseModel):
+    """Request to save a protocol to a file."""
+    name: str = Field(..., description="Filename without extension")
+    content: Dict[str, Any] = Field(..., description="Protocol YAML content")
+    folder: str = Field(default="Custom", description="Subfolder name")
+
+
+class CreateUserRequest(BaseModel):
+    """Request to create a new user (folder in protocols/)."""
+    name: str = Field(..., description="User name")
+
+
 class ProtocolStepInfo(BaseModel):
     """Information about a protocol step result."""
     step_index: int
@@ -71,11 +83,37 @@ class ProtocolStatusResponse(BaseModel):
 async def list_protocols():
     """
     List all available protocol files.
-    
-    Protocols are loaded from the ./protocols/ directory.
     """
     protocols = protocol_loader.list_protocols()
     return ProtocolListResponse(protocols=protocols)
+
+
+@router.get("/users")
+async def list_users():
+    """List available users (folders in protocols/)."""
+    from ..protocol_loader import PROTOCOLS_DIR
+    if not PROTOCOLS_DIR.exists():
+        return {"users": []}
+    
+    users = [d.name for d in PROTOCOLS_DIR.iterdir() if d.is_dir() and not d.name.startswith(".")]
+    return {"users": sorted(users)}
+
+
+@router.post("/create-user")
+async def create_user(request: CreateUserRequest):
+    """Create a new user folder."""
+    from ..protocol_loader import PROTOCOLS_DIR
+    user_dir = PROTOCOLS_DIR / request.name
+    
+    if user_dir.exists():
+        return {"success": False, "message": "User already exists"}
+    
+    try:
+        user_dir.mkdir(parents=True, exist_ok=True)
+        return {"success": True, "message": f"User {request.name} created"}
+    except Exception as e:
+        logger.error(f"Failed to create user {request.name}: {e}")
+        return {"success": False, "message": str(e)}
 
 
 @router.post("/run", response_model=ProtocolResponse)
@@ -180,3 +218,45 @@ async def reload_protocols():
     """Clear the protocol cache and reload all protocols."""
     protocol_loader.clear_cache()
     return {"success": True, "message": "Protocol cache cleared"}
+
+
+@router.get("/get/{protocol_id:path}")
+async def get_protocol(protocol_id: str):
+    """
+    Get the content of a protocol file.
+    """
+    logger.info(f"Loading protocol content: {protocol_id}")
+    try:
+        proto = protocol_loader.load(protocol_id)
+        return {
+            "success": True,
+            "id": protocol_id,
+            "content": {
+                "name": proto.name,
+                "description": proto.description,
+                "version": proto.version,
+                "steps": proto.steps
+            }
+        }
+    except Exception as e:
+        logger.error(f"Failed to load protocol {protocol_id}: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@router.post("/save")
+async def save_protocol(request: SaveProtocolRequest):
+    """
+    Save a protocol to a file.
+    """
+    logger.info(f"Saving protocol: {request.name} in {request.folder}")
+    
+    try:
+        filepath = await protocol_loader.save(request.name, request.content, request.folder)
+        return {
+            "success": True, 
+            "message": f"Protocol saved to {request.folder}/{request.name}.yaml",
+            "filepath": filepath
+        }
+    except Exception as e:
+        logger.error(f"Failed to save protocol: {e}")
+        return {"success": False, "message": str(e)}

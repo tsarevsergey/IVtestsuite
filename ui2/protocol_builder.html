@@ -8,9 +8,11 @@
     <link rel="stylesheet" href="css/theme.css">
     <script src="js/api.js"></script>
     <script src="js/utils.js"></script>
+    <!-- Use js-yaml for reliable YAML Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
     <style>
         .action-palette {
-            max-height: 400px;
+            max-height: 450px;
             overflow-y: auto;
         }
 
@@ -50,7 +52,7 @@
 
         .step-list {
             min-height: 200px;
-            max-height: 500px;
+            max-height: 600px;
             overflow-y: auto;
         }
 
@@ -58,7 +60,7 @@
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.75rem;
             overflow: hidden;
         }
 
@@ -66,7 +68,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0.5rem 0.75rem;
+            padding: 0.6rem 0.75rem;
             background: var(--bg-input);
             cursor: pointer;
         }
@@ -104,16 +106,13 @@
 
         .step-body {
             padding: 0.75rem;
-            display: none;
-        }
-
-        .step-body.open {
             display: block;
+            /* Default expanded in UI2 since we have scroll */
         }
 
         .param-row {
             display: grid;
-            grid-template-columns: 120px 1fr;
+            grid-template-columns: 140px 1fr;
             gap: 0.5rem;
             margin-bottom: 0.5rem;
             align-items: center;
@@ -125,9 +124,28 @@
         }
 
         .param-row input,
-        .param-row select {
+        .param-row select,
+        .param-row textarea {
             padding: 0.4rem 0.5rem;
             font-size: 0.8rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 4px;
+        }
+
+        .param-row textarea {
+            min-height: 60px;
+            font-family: monospace;
+        }
+
+        .capture-row {
+            border-top: 1px solid var(--border-color);
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
         }
     </style>
 </head>
@@ -136,7 +154,7 @@
     <div class="container">
         <!-- Header -->
         <div class="page-header">
-            <h1 class="page-title">🏗️ Protocol Builder</h1>
+            <h1 class="page-title">🏗️ High-Parity Protocol Builder</h1>
             <div class="status-bar">
                 <div class="status-item">
                     <div class="led" id="backendLed"></div>
@@ -159,39 +177,44 @@
                 <!-- Protocol Meta -->
                 <div class="panel">
                     <div class="panel-title">📄 Protocol Info</div>
-                    <div class="form-group">
-                        <label>Protocol Name</label>
-                        <input type="text" id="protocolName" value="New Protocol">
+                    <div class="form-group mb-2">
+                        <label class="text-small">Protocol Name</label>
+                        <input type="text" id="protocolName" value="New Protocol" class="text-small p-1">
                     </div>
-                    <div class="form-group">
-                        <label>Description</label>
-                        <textarea id="protocolDesc" rows="2" placeholder="Protocol description..."></textarea>
+                    <div class="form-group mb-2">
+                        <label class="text-small">Description</label>
+                        <textarea id="protocolDesc" rows="2" placeholder="Protocol description..."
+                            class="text-small p-1">Created with UI2 Protocol Builder</textarea>
+                    </div>
+                    <div class="text-small text-muted"
+                        style="border-top:1px solid var(--border-color); padding-top:0.5rem">
+                        Saving to: <span id="targetFolderDisplay" class="text-accent-cyan">Custom</span>
                     </div>
                 </div>
 
                 <!-- Actions -->
                 <div class="panel">
-                    <div class="btn-row">
-                        <button class="btn btn-outline" onclick="clearSteps()">🗑️ Clear All</button>
-                        <button class="btn btn-primary" onclick="loadProtocol()">📂 Load</button>
+                    <div class="btn-row-3 gap-1 mb-2">
+                        <button class="btn btn-outline btn-sm" onclick="clearSteps()">🗑️ Clear</button>
+                        <button class="btn btn-primary btn-sm" onclick="loadProtocol()">📂 Load</button>
+                        <button class="btn btn-success btn-sm" onclick="saveProtocol()">💾 Save</button>
                     </div>
-                    <div class="btn-row">
-                        <button class="btn btn-success" onclick="saveProtocol()">💾 Save</button>
-                        <button class="btn btn-warning" onclick="runProtocol()">▶ Run</button>
+                    <div class="btn-row gap-1">
+                        <button class="btn btn-warning" style="flex:1" onclick="runProtocol()">▶ Run Protocol</button>
                     </div>
                 </div>
             </div>
 
             <!-- Middle: Step Editor -->
             <div>
-                <div class="panel" style="height: 100%;">
+                <div class="panel" style="height: 100%; min-height: 500px;">
                     <div class="panel-title">📝 Protocol Steps</div>
                     <p class="text-small text-muted mb-2">
-                        <span id="stepCount">0</span> steps • Click header to expand/collapse
+                        <span id="stepCount">0</span> steps total
                     </p>
                     <div class="step-list" id="stepList">
-                        <div class="text-center text-muted" style="padding: 2rem;">
-                            No steps added. Click actions in the palette to build your protocol.
+                        <div class="text-center text-muted" style="padding: 4rem;">
+                            No steps added. Click actions in the palette.
                         </div>
                     </div>
                 </div>
@@ -201,170 +224,197 @@
         <!-- YAML Preview (Bottom) -->
         <div class="panel mt-2">
             <div class="panel-title">📄 YAML Preview</div>
-            <pre class="code-block" id="yamlPreview" style="max-height: 300px;">
-name: New Protocol
-description: ""
-steps: []
-            </pre>
+            <pre class="code-block" id="yamlPreview" style="max-height: 400px; padding: 1rem; overflow: auto;"></pre>
         </div>
     </div>
 
     <script>
-        // Action definitions
+        // Full Action Palette from Streamlit version
         const ACTIONS = {
-            'Communication': {
-                'smu/connect': {
-                    description: 'Connect to SMU',
+            "Communication": {
+                "smu/connect": {
+                    description: "Connect to SMU",
                     params: {
-                        channel: { type: 'int', default: 1, min: 1, max: 2, label: 'Channel' },
-                        mock: { type: 'bool', default: true, label: 'Mock Mode' }
+                        mock: { type: "bool", default: false, label: "Use Mock Mode" },
+                        channel: { type: "int", default: 1, min: 1, max: 2, label: "Channel" }
                     }
                 },
-                'relays/connect': {
-                    description: 'Connect to Relays',
+                "smu/disconnect": { description: "Disconnect from SMU", params: {} },
+                "relays/connect": {
+                    description: "Connect to Relay Controller",
+                    params: { mock: { type: "bool", default: false, label: "Use Mock Mode" } }
+                },
+                "relays/disconnect": { description: "Disconnect from Relays", params: {} }
+            },
+            "SMU Configuration": {
+                "smu/configure": {
+                    description: "Set Compliance & Speed",
                     params: {
-                        mock: { type: 'bool', default: true, label: 'Mock Mode' }
+                        channel: { type: "int", default: 1, min: 1, max: 2, label: "Channel" },
+                        compliance: { type: "float", default: 0.1, label: "Compliance Limit" },
+                        compliance_type: { type: "select", options: ["CURR", "VOLT"], default: "CURR", label: "Compliance Type" },
+                        nplc: { type: "float", default: 1.0, label: "NPLC (Speed)" }
+                    }
+                },
+                "smu/source-mode": {
+                    description: "Set Source Mode",
+                    params: {
+                        channel: { type: "int", default: 1, min: 1, max: 2, label: "Channel" },
+                        mode: { type: "select", options: ["VOLT", "CURR"], default: "VOLT", label: "Source Mode" }
+                    }
+                },
+                "smu/output": {
+                    description: "Enable/Disable Output",
+                    params: {
+                        channel: { type: "int", default: 1, min: 1, max: 2, label: "Channel" },
+                        enabled: { type: "bool", default: true, label: "Output Enabled" }
                     }
                 }
             },
-            'SMU Configuration': {
-                'smu/configure': {
-                    description: 'Set Compliance & Speed',
+            "SMU Operations": {
+                "smu/set": {
+                    description: "Set Source Value",
                     params: {
-                        channel: { type: 'int', default: 1, min: 1, max: 2, label: 'Channel' },
-                        nplc: { type: 'float', default: 1.0, label: 'NPLC' },
-                        compliance: { type: 'float', default: 0.1, label: 'Compliance' }
+                        channel: { type: "int", default: 1, min: 1, max: 2, label: "Channel" },
+                        value: { type: "float", default: 0.0, label: "Value (V or A)" }
                     }
                 },
-                'smu/output': {
-                    description: 'Enable/Disable Output',
+                "smu/measure": { description: "Single Measurement", params: {}, can_capture: true },
+                "smu/sweep": {
+                    description: "Single Channel IV Sweep",
                     params: {
-                        channel: { type: 'int', default: 1, min: 1, max: 2, label: 'Channel' },
-                        enabled: { type: 'bool', default: true, label: 'Enabled' }
-                    }
-                }
-            },
-            'SMU Operations': {
-                'smu/set': {
-                    description: 'Set Source Value',
-                    params: {
-                        channel: { type: 'int', default: 1, min: 1, max: 2, label: 'Channel' },
-                        value: { type: 'float', default: 0.0, label: 'Value (V or A)' }
-                    }
-                },
-                'smu/measure': {
-                    description: 'Single Measurement',
-                    params: {
-                        channel: { type: 'int', default: 1, min: 1, max: 2, label: 'Channel' }
+                        channel: { type: "int", default: 1, min: 1, max: 2, label: "Channel" },
+                        start: { type: "float", default: 0.0, label: "Start (V/A)" },
+                        stop: { type: "float", default: 1.0, label: "Stop (V/A)" },
+                        points: { type: "int", default: 11, label: "Points" },
+                        delay: { type: "float", default: 0.1, label: "Delay (s)" },
+                        compliance: { type: "float", default: 0.1, label: "Compliance" },
+                        scale: { type: "select", options: ["linear", "log"], default: "linear", label: "Scale" },
+                        direction: { type: "select", options: ["forward", "backward"], default: "forward", label: "Direction" },
+                        sweep_type: { type: "select", options: ["single", "double"], default: "single", label: "Type" },
+                        keep_output_on: { type: "bool", default: false, label: "Keep Output On" }
                     },
-                    capture: true
+                    can_capture: true
                 },
-                'smu/sweep': {
-                    description: 'IV Sweep',
+                "smu/bias-sweep": {
+                    description: "Bias Ch A, Sweep Ch B",
                     params: {
-                        channel: { type: 'int', default: 1, min: 1, max: 2, label: 'Channel' },
-                        start: { type: 'float', default: -0.2, label: 'Start (V)' },
-                        stop: { type: 'float', default: 1.2, label: 'Stop (V)' },
-                        points: { type: 'int', default: 50, label: 'Points' },
-                        delay: { type: 'float', default: 0.01, label: 'Delay (s)' }
+                        bias_channel: { type: "int", default: 2, label: "Bias Ch ID" },
+                        bias_source_mode: { type: "select", options: ["VOLT", "CURR"], default: "VOLT", label: "Bias Mode" },
+                        bias_value: { type: "float", default: 0.0, label: "Bias Value" },
+                        bias_compliance: { type: "float", default: 0.1, label: "Bias Compliance" },
+                        sweep_channel: { type: "int", default: 1, label: "Sweep Ch ID" },
+                        sweep_source_mode: { type: "select", options: ["VOLT", "CURR"], default: "VOLT", label: "Sweep Mode" },
+                        start: { type: "float", default: 0.0, label: "Sweep Start" },
+                        stop: { type: "float", default: 1.0, label: "Sweep Stop" },
+                        points: { type: "int", default: 11, label: "Points" },
+                        sweep_compliance: { type: "float", default: 0.1, label: "Sweep Compliance" },
+                        delay: { type: "float", default: 0.1, label: "Delay (s)" }
                     },
-                    capture: true
-                }
-            },
-            'Relay Control': {
-                'relays/pixel': {
-                    description: 'Select Pixel',
-                    params: {
-                        pixel_id: { type: 'int', default: 1, min: 1, max: 8, label: 'Pixel ID' }
-                    }
+                    can_capture: true
                 },
-                'relays/led': {
-                    description: 'Control LED',
+                "smu/list-sweep": {
+                    description: "Single Channel List Sweep",
                     params: {
-                        wavelength: { type: 'select', options: ['red', 'green', 'blue'], default: 'blue', label: 'Wavelength' },
-                        intensity: { type: 'select', options: ['off', 'low', 'high'], default: 'high', label: 'Intensity' }
-                    }
-                }
-            },
-            'Flow Control': {
-                'delay': {
-                    description: 'Wait/Delay',
-                    params: {
-                        seconds: { type: 'float', default: 1.0, label: 'Seconds' }
-                    }
-                },
-                'loop': {
-                    description: 'Loop Over Values',
-                    params: {
-                        variable: { type: 'str', default: 'pixel', label: 'Variable Name' },
-                        sequence: { type: 'str', default: '1,2,3,4,5,6,7,8', label: 'Sequence' }
+                        channel: { type: "int", default: 1, label: "Channel" },
+                        points: { type: "code", default: "[0.0, 0.5, 1.0, 0.5, 0.0]", label: "Points List" },
+                        source_mode: { type: "select", options: ["VOLT", "CURR"], default: "VOLT", label: "Source Mode" },
+                        delay: { type: "float", default: 0.05, label: "Delay (s)" },
+                        compliance: { type: "float", default: 0.1, label: "Compliance" }
                     },
-                    nested: true
+                    can_capture: true
+                },
+                "smu/simultaneous-sweep-custom": {
+                    description: "Simultaneous 2-Ch Sweep",
+                    params: {
+                        ch1_start: { type: "float", default: 0.0, label: "Ch1 Start (V)" },
+                        ch1_stop: { type: "float", default: 1.0, label: "Ch1 Stop (V)" },
+                        ch2_start: { type: "float", default: 0.0, label: "Ch2 Start (V)" },
+                        ch2_stop: { type: "float", default: 1.0, label: "Ch2 Stop (V)" },
+                        points: { type: "int", default: 11, label: "Points" },
+                        delay: { type: "float", default: 0.05, label: "Delay (s)" },
+                        compliance: { type: "float", default: 0.1, label: "Compliance" }
+                    },
+                    can_capture: true
                 }
             },
-            'Data': {
-                'data/save': {
-                    description: 'Save Data',
+            "Relay Control": {
+                "relays/pixel": {
+                    description: "Select Pixel",
+                    params: { pixel_id: { type: "int", default: 0, label: "Pixel ID (0-7)" } }
+                },
+                "relays/led": {
+                    description: "Select LED",
+                    params: { channel_id: { type: "int", default: 0, label: "LED Channel" } }
+                },
+                "relays/all-off": { description: "Turn All Relays OFF", params: {} }
+            },
+            "Utility": {
+                "wait": { description: "Wait / Delay", params: { seconds: { type: "float", default: 1.0, label: "Seconds" } } },
+                "data/save": {
+                    description: "Save Captured Data",
                     params: {
-                        filename: { type: 'str', default: 'data', label: 'Filename' },
-                        folder: { type: 'str', default: './data', label: 'Folder' }
+                        data: { type: "var_ref", default: "$result", label: "Variable to Save" },
+                        filename: { type: "str", default: "data_output", label: "Filename" },
+                        folder: { type: "str", default: "./data", label: "Folder" }
                     }
                 }
             }
         };
 
-        // State
         let steps = [];
 
-        // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
-            await checkConnection();
             renderActionPalette();
             updatePreview();
+            checkConnection();
+            updateTargetFolder();
         });
+
+        function updateTargetFolder() {
+            const user = UI2.getCurrentUser();
+            document.getElementById('targetFolderDisplay').textContent = user || 'Custom';
+        }
 
         async function checkConnection() {
             const connected = await UI2.checkBackendConnection();
             document.getElementById('backendLed').classList.toggle('ok', connected);
         }
 
-        // Render action palette
         function renderActionPalette() {
+            const palette = document.getElementById('actionPalette');
             let html = '';
             for (const [category, actions] of Object.entries(ACTIONS)) {
                 html += `<div class="action-category">`;
                 html += `<div class="action-category-title">${category}</div>`;
-                for (const [actionName, schema] of Object.entries(actions)) {
-                    const shortName = actionName.split('/').pop();
+                for (const [name, schema] of Object.entries(actions)) {
+                    const shortName = name.split('/').pop();
                     html += `
-                        <button class="action-btn" onclick="addStep('${actionName}')" title="${schema.description}">
+                        <button class="action-btn" onclick="addStep('${name}')" title="${schema.description}">
                             ➕ ${shortName}
                         </button>
                     `;
                 }
                 html += `</div>`;
             }
-            document.getElementById('actionPalette').innerHTML = html;
+            palette.innerHTML = html;
         }
 
-        // Add step
-        function addStep(actionName) {
-            const schema = findSchema(actionName);
-            if (!schema) return;
-
+        function addStep(name) {
+            const schema = findSchema(name);
             const step = {
                 id: Date.now(),
-                action: actionName,
+                action: name,
                 params: {}
             };
 
-            // Initialize params with defaults
-            for (const [key, def] of Object.entries(schema.params || {})) {
+            for (const [key, def] of Object.entries(schema.params)) {
                 step.params[key] = def.default;
             }
 
-            if (schema.capture) {
-                step.capture = 'result';
+            // Defaults for capture
+            if (schema.can_capture) {
+                step.capture_as = "";
             }
 
             steps.push(step);
@@ -372,247 +422,231 @@ steps: []
             updatePreview();
         }
 
-        // Find schema for action
-        function findSchema(actionName) {
-            for (const category of Object.values(ACTIONS)) {
-                if (category[actionName]) return category[actionName];
+        function findSchema(name) {
+            for (const cat of Object.values(ACTIONS)) {
+                if (cat[name]) return cat[name];
             }
             return null;
         }
 
-        // Render steps
         function renderSteps() {
+            const list = document.getElementById('stepList');
             document.getElementById('stepCount').textContent = steps.length;
 
             if (steps.length === 0) {
-                document.getElementById('stepList').innerHTML = `
-                    <div class="text-center text-muted" style="padding: 2rem;">
-                        No steps added. Click actions in the palette to build your protocol.
-                    </div>
-                `;
+                list.innerHTML = `<div class="text-center text-muted" style="padding: 4rem;">No steps added. Click actions in the palette.</div>`;
                 return;
             }
 
             let html = '';
-            for (let i = 0; i < steps.length; i++) {
-                const step = steps[i];
+            steps.forEach((step, idx) => {
                 const schema = findSchema(step.action);
-                const shortName = step.action.split('/').pop();
-
                 html += `
-                    <div class="step-card" id="step-${step.id}">
-                        <div class="step-header" onclick="toggleStep(${step.id})">
+                    <div class="step-card">
+                        <div class="step-header">
                             <div class="step-title">
-                                <span style="color: var(--text-muted); font-size: 0.75rem;">${i + 1}.</span>
+                                <span class="text-muted">${idx + 1}.</span>
                                 <span>${step.action}</span>
                             </div>
                             <div class="step-actions">
-                                <button onclick="event.stopPropagation(); moveStep(${i}, -1)" ${i === 0 ? 'disabled' : ''}>↑</button>
-                                <button onclick="event.stopPropagation(); moveStep(${i}, 1)" ${i === steps.length - 1 ? 'disabled' : ''}>↓</button>
-                                <button onclick="event.stopPropagation(); removeStep(${i})" style="color: var(--accent-red);">✕</button>
+                                <button onclick="moveStep(${idx}, -1)" ${idx === 0 ? 'disabled' : ''}>↑</button>
+                                <button onclick="moveStep(${idx}, 1)" ${idx === steps.length - 1 ? 'disabled' : ''}>↓</button>
+                                <button onclick="removeStep(${idx})" style="color: var(--accent-red)">✕</button>
                             </div>
                         </div>
-                        <div class="step-body" id="step-body-${step.id}">
-                            ${renderStepParams(step, schema, i)}
+                        <div class="step-body">
+                            ${renderParams(step, schema, idx)}
+                            ${schema.can_capture ? `
+                                <div class="capture-row">
+                                    <label class="checkbox-label text-small">
+                                        <input type="checkbox" ${step.capture_as ? 'checked' : ''} 
+                                               onchange="toggleCapture(${idx}, this.checked)"> 
+                                        Capture Result
+                                    </label>
+                                    ${step.capture_as !== undefined && step.capture_as !== null && step.capture_as !== false && (step.capture_as || typeof step.capture_as === 'string') ? `
+                                        <input type="text" value="${step.capture_as || 'result'}" 
+                                               oninput="updateCaptureName(${idx}, this.value)" 
+                                               placeholder="variable_name" class="text-small p-1" style="width:120px">
+                                    ` : ''}
+                                </div>
+                            ` : ''}
                         </div>
                     </div>
                 `;
-            }
-            document.getElementById('stepList').innerHTML = html;
+            });
+            list.innerHTML = html;
         }
 
-        // Render step parameters
-        function renderStepParams(step, schema, index) {
-            if (!schema || !schema.params) return '<div class="text-muted">No parameters</div>';
-
+        function renderParams(step, schema, idx) {
             let html = '';
             for (const [key, def] of Object.entries(schema.params)) {
-                const value = step.params[key];
-                html += `<div class="param-row">`;
-                html += `<label>${def.label || key}</label>`;
+                const val = step.params[key];
+                html += `<div class="param-row"><label>${def.label || key}</label>`;
 
                 if (def.type === 'bool') {
-                    html += `<input type="checkbox" ${value ? 'checked' : ''} 
-                             onchange="updateParam(${index}, '${key}', this.checked)">`;
+                    html += `<input type="checkbox" ${val ? 'checked' : ''} onchange="updateParam(${idx}, '${key}', this.checked)">`;
                 } else if (def.type === 'select') {
-                    html += `<select onchange="updateParam(${index}, '${key}', this.value)">`;
-                    for (const opt of def.options) {
-                        html += `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`;
-                    }
+                    html += `<select onchange="updateParam(${idx}, '${key}', this.value)">`;
+                    def.options.forEach(opt => {
+                        html += `<option value="${opt}" ${val === opt ? 'selected' : ''}>${opt}</option>`;
+                    });
                     html += `</select>`;
                 } else if (def.type === 'int' || def.type === 'float') {
-                    html += `<input type="number" value="${value}" step="${def.type === 'float' ? '0.01' : '1'}"
-                             ${def.min !== undefined ? `min="${def.min}"` : ''} 
-                             ${def.max !== undefined ? `max="${def.max}"` : ''}
-                             onchange="updateParam(${index}, '${key}', parseFloat(this.value))">`;
+                    html += `<input type="number" step="${def.type === 'float' ? '0.01' : '1'}" value="${val}" 
+                                   oninput="updateParam(${idx}, '${key}', parseFloat(this.value))">`;
+                } else if (def.type === 'code') {
+                    html += `<textarea oninput="updateParam(${idx}, '${key}', this.value)">${val}</textarea>`;
                 } else {
-                    html += `<input type="text" value="${value}"
-                             onchange="updateParam(${index}, '${key}', this.value)">`;
+                    html += `<input type="text" value="${val}" oninput="updateParam(${idx}, '${key}', this.value)">`;
                 }
 
                 html += `</div>`;
             }
-
-            if (schema.capture) {
-                html += `<div class="param-row">`;
-                html += `<label>Capture As</label>`;
-                html += `<input type="text" value="${step.capture || 'result'}"
-                         onchange="updateCapture(${index}, this.value)">`;
-                html += `</div>`;
-            }
-
             return html;
         }
 
-        // Toggle step expansion
-        function toggleStep(id) {
-            const body = document.getElementById(`step-body-${id}`);
-            body.classList.toggle('open');
-        }
-
-        // Update parameter
-        function updateParam(index, key, value) {
-            steps[index].params[key] = value;
-            updatePreview();
-        }
-
-        // Update capture
-        function updateCapture(index, value) {
-            steps[index].capture = value;
-            updatePreview();
-        }
-
-        // Move step
-        function moveStep(index, direction) {
-            const newIndex = index + direction;
-            if (newIndex < 0 || newIndex >= steps.length) return;
-
-            const temp = steps[index];
-            steps[index] = steps[newIndex];
-            steps[newIndex] = temp;
-
-            renderSteps();
-            updatePreview();
-        }
-
-        // Remove step
-        function removeStep(index) {
-            steps.splice(index, 1);
-            renderSteps();
-            updatePreview();
-        }
-
-        // Clear all steps
-        function clearSteps() {
-            if (steps.length > 0 && !confirm('Clear all steps?')) return;
-            steps = [];
-            renderSteps();
-            updatePreview();
-        }
-
-        // Update YAML preview
-        function updatePreview() {
-            const protocol = {
-                name: document.getElementById('protocolName').value,
-                description: document.getElementById('protocolDesc').value,
-                steps: steps.map(s => {
-                    const step = { action: s.action, params: s.params };
-                    if (s.capture) step.capture = s.capture;
-                    return step;
-                })
-            };
-
-            const yaml = JSON.stringify(protocol, null, 2)
-                .replace(/"/g, '')
-                .replace(/,\n/g, '\n')
-                .replace(/{\n/g, '\n')
-                .replace(/}\n/g, '\n');
-
-            document.getElementById('yamlPreview').textContent = yaml;
-        }
-
-        // Save protocol
-        async function saveProtocol() {
-            const name = document.getElementById('protocolName').value;
-            if (!name) {
-                alert('Please enter a protocol name');
-                return;
-            }
-
-            const protocol = {
-                name: name,
-                description: document.getElementById('protocolDesc').value,
-                steps: steps.map(s => {
-                    const step = { action: s.action, params: s.params };
-                    if (s.capture) step.capture = s.capture;
-                    return step;
-                })
-            };
-
-            const result = await UI2.saveProtocol(name, protocol, 'Custom');
-            if (result.success !== false) {
-                alert(`Saved: Custom/${name}.yaml`);
+        function updateParam(idx, key, val) {
+            // Special handling for code type to try and parse as list
+            const schema = findSchema(steps[idx].action);
+            if (schema.params[key].type === 'code') {
+                try {
+                    // Try to parse string as JSON array
+                    const parsed = JSON.parse(val.replace(/'/g, '"'));
+                    steps[idx].params[key] = parsed;
+                } catch (e) {
+                    steps[idx].params[key] = val; // Keep as string if invalid
+                }
             } else {
-                alert(`Save failed: ${result.message}`);
+                steps[idx].params[key] = val;
             }
+            updatePreview();
         }
 
-        // Load protocol
-        async function loadProtocol() {
-            const protocols = await UI2.getProtocolList();
-            if (!protocols.protocols || protocols.protocols.length === 0) {
-                alert('No protocols found');
-                return;
-            }
+        function toggleCapture(idx, enabled) {
+            steps[idx].capture_as = enabled ? "result" : null;
+            renderSteps();
+            updatePreview();
+        }
 
-            const id = prompt('Enter protocol ID:\n' + protocols.protocols.map(p => p.id).join('\n'));
-            if (!id) return;
+        function updateCaptureName(idx, name) {
+            steps[idx].capture_as = name;
+            updatePreview();
+        }
 
-            const result = await UI2.getProtocolContent(id);
-            if (result && result.content) {
-                document.getElementById('protocolName').value = result.content.name || id;
-                document.getElementById('protocolDesc').value = result.content.description || '';
+        function moveStep(idx, dir) {
+            const newIdx = idx + dir;
+            if (newIdx < 0 || newIdx >= steps.length) return;
+            [steps[idx], steps[newIdx]] = [steps[newIdx], steps[idx]];
+            renderSteps();
+            updatePreview();
+        }
 
-                steps = (result.content.steps || []).map((s, i) => ({
-                    id: Date.now() + i,
-                    action: s.action,
-                    params: s.params || {},
-                    capture: s.capture
-                }));
+        function removeStep(idx) {
+            steps.splice(idx, 1);
+            renderSteps();
+            updatePreview();
+        }
 
+        function clearSteps() {
+            if (confirm('Clear all steps?')) {
+                steps = [];
                 renderSteps();
                 updatePreview();
             }
         }
 
-        // Run protocol
-        async function runProtocol() {
-            if (steps.length === 0) {
-                alert('Add some steps first');
-                return;
-            }
-
+        function updatePreview() {
             const protocol = {
                 name: document.getElementById('protocolName').value,
                 description: document.getElementById('protocolDesc').value,
+                version: 1.0,
                 steps: steps.map(s => {
-                    const step = { action: s.action, params: s.params };
-                    if (s.capture) step.capture = s.capture;
+                    const step = { action: s.action, params: { ...s.params } };
+                    if (s.capture_as) step.capture_as = s.capture_as;
                     return step;
                 })
             };
 
-            const result = await UI2.runInlineProtocol(protocol);
-            if (result.success !== false) {
-                alert('Protocol started! Switch to Protocol Runner to monitor.');
-            } else {
-                alert(`Failed: ${result.message}`);
+            const yamlStr = jsyaml.dump(protocol, { indent: 2, noArrayIndent: true });
+            document.getElementById('yamlPreview').textContent = yamlStr;
+        }
+
+        async function saveProtocol() {
+            const name = document.getElementById('protocolName').value;
+            const desc = document.getElementById('protocolDesc').value;
+            if (!name) return alert('Enter a protocol name');
+
+            const protocolData = {
+                name, description: desc, version: 1.0,
+                steps: steps.map(s => {
+                    const step = { action: s.action, params: { ...s.params } };
+                    if (s.capture_as) step.capture_as = s.capture_as;
+                    return step;
+                })
+            };
+
+            const filename = name.toLowerCase().replace(/\s+/g, '_');
+            const user = UI2.getCurrentUser() || 'Custom';
+            try {
+                const res = await UI2.saveProtocol(filename, protocolData, user);
+                if (res && res.success) {
+                    Utils.showToast(`Saved to ${user}/${filename}.yaml`, 'success');
+                } else {
+                    const errorMsg = res ? (res.message || res.detail || "Unknown error") : "No response from server";
+                    alert("Save failed: " + errorMsg);
+                }
+            } catch (e) {
+                alert("Save error: " + e.message);
             }
         }
 
-        // Update preview on name/desc change
-        document.getElementById('protocolName').addEventListener('input', updatePreview);
-        document.getElementById('protocolDesc').addEventListener('input', updatePreview);
+        async function loadProtocol() {
+            try {
+                const list = await UI2.getProtocolList();
+                if (!list || !list.protocols || list.protocols.length === 0) {
+                    return alert("No protocols found");
+                }
+
+                const id = prompt("Enter protocol ID to load:\n" + list.protocols.map(p => p.id).join('\n'));
+                if (!id) return;
+
+                const res = await UI2.getProtocolContent(id);
+                if (res && res.success && res.content) {
+                    const p = res.content;
+                    document.getElementById('protocolName').value = p.name || id;
+                    document.getElementById('protocolDesc').value = p.description || "";
+
+                    steps = (p.steps || []).map((s, idx) => ({
+                        id: Date.now() + idx,
+                        action: s.action,
+                        params: s.params || {},
+                        capture_as: s.capture_as || null
+                    }));
+
+                    renderSteps();
+                    updatePreview();
+                } else {
+                    const errorMsg = res ? (res.message || res.detail || "Unknown error") : "Failed to load protocol";
+                    alert("Load failed: " + errorMsg);
+                }
+            } catch (e) {
+                alert("Load error: " + e.message);
+            }
+        }
+
+        async function runProtocol() {
+            if (steps.length === 0) return alert("Add steps first");
+            const name = document.getElementById('protocolName').value;
+            const protocol = {
+                name, steps: steps.map(s => {
+                    const step = { action: s.action, params: { ...s.params } };
+                    if (s.capture_as) step.capture_as = s.capture_as;
+                    return step;
+                })
+            };
+            const res = await UI2.runInlineProtocol(protocol);
+            if (res.success) Utils.showToast("Protocol Started!", 'success');
+        }
     </script>
 </body>
 

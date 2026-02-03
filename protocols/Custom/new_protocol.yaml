@@ -1,0 +1,9 @@
+name: New Protocol
+description: Created with UI2 Protocol Builder
+version: 1
+steps:
+- action: relays/connect
+  params:
+    mock: false
+- action: relays/disconnect
+  params: {}
