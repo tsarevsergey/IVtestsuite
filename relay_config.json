@@ -26,17 +26,17 @@
         "port": "COM39",
         "baud": 112500,
         "relays": [
-            0,
             1,
             2,
-            3
+            3,
+            4
         ],
         "on_offset": 10,
         "wavelengths": {
-            "0": "None",
-            "1": "461 nm (Blue)",
-            "2": "626 nm (Red)",
-            "3": "522 nm (Green)"
+            "1": "None",
+            "2": "461 nm (Blue)",
+            "3": "626 nm (Red)",
+            "4": "522 nm (Green)"
         }
     }
 }

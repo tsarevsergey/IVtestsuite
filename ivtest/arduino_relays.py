@@ -334,10 +334,10 @@ class ArduinoRelayController:
         
         # Load wavelength mapping from config file
         self._wavelengths = {
-            "0": "None",
-            "1": "461 nm (Blue)",
-            "2": "626 nm (Red)",
-            "3": "522 nm (Green)"
+            "1": "None",
+            "2": "461 nm (Blue)",
+            "3": "626 nm (Red)",
+            "4": "522 nm (Green)"
         }
         try:
             if CONFIG_FILE.exists():

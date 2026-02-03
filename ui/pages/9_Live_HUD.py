@@ -374,8 +374,8 @@ with col_left:
     st.markdown('<div class="industrial-panel" style="margin-top:1rem;">', unsafe_allow_html=True)
     st.markdown('<div class="panel-title">Illumination Control</div>', unsafe_allow_html=True)
 
-    # Get wavelength mapping from API (with fallback defaults)
-    wavelength_map = {"0": "None", "1": "461 nm (Blue)", "2": "626 nm (Red)", "3": "522 nm (Green)"}
+    # Get wavelength mapping from API (with fallback defaults - keys 1-4)
+    wavelength_map = {"1": "None", "2": "461 nm (Blue)", "3": "626 nm (Red)", "4": "522 nm (Green)"}
     try:
         resp = api_call("GET", "/relays/wavelengths", timeout=1)
         if resp and resp.status_code == 200:
@@ -383,33 +383,85 @@ with col_left:
     except:
         pass
     
-    # Build dropdown options: [label] -> relay_num
-    wavelength_options = [wavelength_map.get(str(i), f"LED {i}") for i in range(4)]
+    # Build dropdown options: keys 1-4 -> [label]
+    wavelength_options = [wavelength_map.get(str(i), f"LED {i}") for i in range(1, 5)]  # 1-4
 
     i1, i2 = st.columns(2)
     with i1:
-        # Use session state to track selected LED (default 0 = None)
+        # Use session state to track selected LED (default 0 = None = relay 1)
         led_relay_label = st.selectbox("Wavelength", wavelength_options, index=st.session_state.selected_led, key="led_wave")
-        led_cur = st.number_input("Current (A)", value=0.010, format="%.3f", step=0.001, key="led_cur")
+        
+        # Current/Irradiance toggle
+        led_mode = st.radio("LED Power Mode", ["Current (A)", "Irradiance (W/cm²)"], horizontal=True, key="led_mode")
+    
     with i2:
         led_smu = st.selectbox("Driver SMU", [1, 2], index=0, key="led_smu")
         led_lim = st.number_input("Limit (V)", value=9.0, step=0.5, key="led_lim")
+    
+    # LED current input - either direct or from calibration
+    if led_mode == "Current (A)":
+        led_cur = st.number_input("Current (A)", value=0.010, format="%.4f", step=0.001, key="led_cur")
+    else:
+        # Irradiance mode - load calibration file
+        import numpy as np
+        cal_files = list(Path(__file__).parent.parent.parent.glob("cal*.txt"))
+        cal_names = [f.name for f in cal_files]
+        
+        if cal_names:
+            c1, c2 = st.columns(2)
+            with c2:
+                selected_cal = st.selectbox("Calibration File", cal_names, index=0, key="cal_file")
+                cal_path = Path(__file__).parent.parent.parent / selected_cal
+            
+            try:
+                # Try new format first: 3 columns with header (LED_Current, PD_Current, Irradiance)
+                try:
+                    data = np.loadtxt(cal_path, delimiter='\t', skiprows=1)
+                    if data.shape[1] >= 3:
+                        currents = data[:, 0]
+                        irradiances = data[:, 2]  # Column 3: Irradiance
+                    else:
+                        raise ValueError("Not enough columns for new format")
+                except:
+                    # Fall back to old format: 2 columns, no header (Current, Irradiance)
+                    data = np.loadtxt(cal_path, delimiter='\t', skiprows=0)
+                    currents = data[:, 0]
+                    irradiances = data[:, 1]  # Column 2: Irradiance (old format)
+                
+                min_irr = float(irradiances.min())
+                max_irr = float(irradiances.max())
+                
+                with c1:
+                    st.caption(f"📊 Range: {min_irr:.6f} - {max_irr:.6f} W/cm²")
+                    target_irr = st.number_input("Target (W/cm²)", value=min(0.001, max_irr), 
+                                                  step=1e-5, format="%.6f", key="target_irr")
+                    target_irr = max(min_irr, min(target_irr, max_irr))
+                
+                led_cur = float(np.interp(target_irr, irradiances, currents))
+                st.success(f"→ {target_irr:.6f} W/cm² = {led_cur:.6f} A")
+            except Exception as e:
+                st.error(f"Cal error: {e}")
+                led_cur = 0.010
+        else:
+            st.warning("No calibration files (cal*.txt)")
+            led_cur = 0.010
 
     if st.button("SET LED CONFIGURATION", key="set_led_cfg", use_container_width=True):
-        # Find relay index from selected wavelength label
-        led_relay_idx = wavelength_options.index(led_relay_label) if led_relay_label in wavelength_options else 0
-        st.session_state.selected_led = led_relay_idx  # Track in session state
+        # Find relay index from selected wavelength label (now 1-indexed)
+        led_relay_idx = wavelength_options.index(led_relay_label) + 1 if led_relay_label in wavelength_options else 1
+        st.session_state.selected_led = led_relay_idx - 1  # Session state is 0-indexed for selectbox
         
-        if led_relay_idx > 0:  # 0 = None (no relay)
-            # Relay is slow (mechanical, needs ~1s), use longer timeout
-            api_call("POST", "/relays/led", json={"channel_id": led_relay_idx - 1}, timeout=3)
-            st.toast(f"LED relay switched to {led_relay_label}")
+        # Relay number = led_relay_idx (1=None, 2=Blue, 3=Red, 4=Green)
+        # Send led_relay_idx directly as the relay to turn on
+        # Relay is slow (mechanical, needs ~1s), use longer timeout
+        api_call("POST", "/relays/led", json={"channel_id": led_relay_idx - 1}, timeout=3)  # API still 0-indexed
+        st.toast(f"LED relay {led_relay_idx} switched to {led_relay_label}")
         
         # Configure SMU for LED driving
         api_call("POST", "/smu/configure", json={"channel": led_smu, "compliance": led_lim, "compliance_type": "VOLT"})
         api_call("POST", "/smu/source-mode", json={"channel": led_smu, "mode": "CURR"})
         api_call("POST", "/smu/set", json={"channel": led_smu, "value": led_cur})
-        st.toast(f"LED configured on SMU {led_smu}")
+        st.toast(f"LED configured: {led_cur:.4f} A on SMU {led_smu}")
 
     b1, b2 = st.columns(2)
     with b1:
