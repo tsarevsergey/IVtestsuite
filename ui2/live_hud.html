@@ -201,49 +201,12 @@
             <h1 class="page-title">🕹️ Smart Live HUD</h1>
             <div class="status-bar">
                 <button class="btn btn-sm stop-all-btn" onclick="stopAll()">🛑 STOP ALL</button>
-                <div class="status-item">
-                    <div class="led" id="backendLed"></div>
-                    <span>Backend</span>
-                </div>
             </div>
         </div>
 
         <div class="grid-sidebar">
             <!-- LEFT COLUMN: CONTROLS -->
             <div class="left-col">
-                <!-- 1. System Connections -->
-                <div class="panel p-3">
-                    <div class="panel-title mb-2">System Connections</div>
-                    <div class="form-group mb-2">
-                        <label class="checkbox-label text-small">
-                            <input type="checkbox" id="mockMode">
-                            Mock Mode
-                        </label>
-                    </div>
-                    <div class="grid-3 mb-2">
-                        <div class="text-center">
-                            <div class="led" id="smu1Led"></div>
-                            <div class="text-small mt-1 text-muted">SMU1</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="led" id="smu2Led"></div>
-                            <div class="text-small mt-1 text-muted">SMU2</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="led" id="relaysLed"></div>
-                            <div class="text-small mt-1 text-muted">RELAY</div>
-                        </div>
-                    </div>
-                    <div class="btn-row-3 gap-1">
-                        <button class="btn btn-primary btn-compact" id="btnConnectSmu1"
-                            onclick="connectSMU(1)">CH1</button>
-                        <button class="btn btn-primary btn-compact" id="btnConnectSmu2"
-                            onclick="connectSMU(2)">CH2</button>
-                        <button class="btn btn-primary btn-compact" id="btnConnectRelays"
-                            onclick="connectRelays()">Rlys</button>
-                    </div>
-                </div>
-
                 <!-- 2. Device Selection -->
                 <div class="panel p-3">
                     <div class="panel-title mb-2">Device Selection</div>
@@ -556,34 +519,6 @@
             }
         }
 
-        async function connectSMU(ch) {
-            const mock = document.getElementById('mockMode').checked;
-            Utils.showToast(`Connecting SMU CH${ch}...`);
-            const res = await UI2.connectSMU(ch, mock);
-            if (res.success !== false) {
-                document.getElementById(`smu${ch}Led`).classList.add('ok');
-                Utils.log('logBox', `SMU CH${ch} Connected`, 'success');
-                Utils.showToast(`SMU CH${ch} Connected`, 'success');
-            } else {
-                Utils.log('logBox', `SMU CH${ch} Fail: ${res.message}`, 'error');
-                Utils.showToast(`SMU CH${ch} Fail`, 'error');
-            }
-        }
-
-        async function connectRelays() {
-            const mock = document.getElementById('mockMode').checked;
-            Utils.showToast("Connecting Relays...");
-            const res = await UI2.connectRelays(mock);
-            if (res.success !== false) {
-                document.getElementById('relaysLed').classList.add('ok');
-                Utils.log('logBox', 'Relays Connected', 'success');
-                Utils.showToast("Relays Connected", 'success');
-            } else {
-                Utils.log('logBox', `Relays Fail: ${res.message}`, 'error');
-                Utils.showToast("Relays Fail", 'error');
-            }
-        }
-
         function renderPixelGrid() {
             const grid = document.getElementById('pixelGrid');
             let html = '';
@@ -610,13 +545,12 @@
         }
 
         async function checkStatus() {
-            const connected = await UI2.checkBackendConnection();
-            document.getElementById('backendLed').classList.toggle('ok', connected);
-            if (connected) {
-                const status = await UI2.getRunStatus();
-                if (status.connected) {
-                    document.getElementById('smu1Led').classList.toggle('ok', status.connected);
-                }
+            try {
+                const data = await UI2.getRunStatus();
+                if (data.error) throw new Error();
+                // Backend is OK, nothing to update locally as LEDs are in parent frame
+            } catch (e) {
+                // Backend is down
             }
         }
 

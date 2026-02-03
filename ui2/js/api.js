@@ -110,10 +110,24 @@ async function getProtocolContent(protocolId) {
 }
 
 /**
- * Get system status (hardware focus)
+ * Get system status (run manager state)
  */
-async function getSystemStatus() {
+async function getRunStatus() {
     return await api('GET', '/status');
+}
+
+/**
+ * Get SMU hardware status
+ */
+async function getSMUStatus() {
+    return await api('GET', '/smu/status');
+}
+
+/**
+ * Get Relay hardware status
+ */
+async function getRelayStatus() {
+    return await api('GET', '/relays/status');
 }
 
 /**
@@ -185,7 +199,9 @@ window.UI2 = {
         const targetFolder = folder || user || 'Custom';
         return api('POST', '/protocol/save', { name, content, folder: targetFolder });
     },
-    getSystemStatus,
+    getRunStatus,
+    getSMUStatus,
+    getRelayStatus,
     getProtocolStatus,
     getProtocolHistory,
     abortProtocol,
