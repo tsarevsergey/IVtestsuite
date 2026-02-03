@@ -21,7 +21,8 @@ st.set_page_config(page_title="Smart Live HUD", page_icon="🕹️", layout="wid
 if "live_traces" not in st.session_state: st.session_state.live_traces = []
 if "monitoring" not in st.session_state: st.session_state.monitoring = False
 if "led_state" not in st.session_state: st.session_state.led_state = False
-if "selected_pixel" not in st.session_state: st.session_state.selected_pixel = 1
+if "selected_pixel" not in st.session_state: st.session_state.selected_pixel = None  # Start with no pixel selected
+if "selected_led" not in st.session_state: st.session_state.selected_led = 0  # 0 = None
 if "last_iv_trace" not in st.session_state: st.session_state.last_iv_trace = None
 if "monitor_configured" not in st.session_state: st.session_state.monitor_configured = False
 if "conn_smu1" not in st.session_state: st.session_state.conn_smu1 = False
@@ -351,14 +352,18 @@ with col_left:
             # use primary to highlight selected pixel
             if st.button(f"P{i}", key=f"p{i}", type=("primary" if is_sel else "secondary"), use_container_width=True):
                 st.session_state.selected_pixel = i
-                api_call("POST", "/relays/pixel", json={"pixel_id": i - 1})
+                # Only send relay command when explicitly clicked (relay is slow, needs 1s)
+                api_call("POST", "/relays/pixel", json={"pixel_id": i - 1}, timeout=3)
+                st.toast(f"Pixel {i} selected")
                 st.rerun()
 
+    # Display current selection
+    pixel_display = f"Pixel {st.session_state.selected_pixel}" if st.session_state.selected_pixel else "None"
     st.markdown(
         f"""
 <div style="margin-top:.75rem; display:flex; align-items:center; gap:8px;">
   <span style="font-size:.85rem; color: var(--muted-foreground); font-weight:600;">Selected:</span>
-  <span class="status-badge">Pixel {st.session_state.selected_pixel}</span>
+  <span class="status-badge">{pixel_display}</span>
 </div>
 """,
         unsafe_allow_html=True,
@@ -383,7 +388,8 @@ with col_left:
 
     i1, i2 = st.columns(2)
     with i1:
-        led_relay_label = st.selectbox("Wavelength", wavelength_options, index=1, key="led_wave")
+        # Use session state to track selected LED (default 0 = None)
+        led_relay_label = st.selectbox("Wavelength", wavelength_options, index=st.session_state.selected_led, key="led_wave")
         led_cur = st.number_input("Current (A)", value=0.010, format="%.3f", step=0.001, key="led_cur")
     with i2:
         led_smu = st.selectbox("Driver SMU", [1, 2], index=0, key="led_smu")
@@ -392,8 +398,14 @@ with col_left:
     if st.button("SET LED CONFIGURATION", key="set_led_cfg", use_container_width=True):
         # Find relay index from selected wavelength label
         led_relay_idx = wavelength_options.index(led_relay_label) if led_relay_label in wavelength_options else 0
+        st.session_state.selected_led = led_relay_idx  # Track in session state
+        
         if led_relay_idx > 0:  # 0 = None (no relay)
-            api_call("POST", "/relays/led", json={"channel_id": led_relay_idx - 1})  # API is 0-indexed
+            # Relay is slow (mechanical, needs ~1s), use longer timeout
+            api_call("POST", "/relays/led", json={"channel_id": led_relay_idx - 1}, timeout=3)
+            st.toast(f"LED relay switched to {led_relay_label}")
+        
+        # Configure SMU for LED driving
         api_call("POST", "/smu/configure", json={"channel": led_smu, "compliance": led_lim, "compliance_type": "VOLT"})
         api_call("POST", "/smu/source-mode", json={"channel": led_smu, "mode": "CURR"})
         api_call("POST", "/smu/set", json={"channel": led_smu, "value": led_cur})

@@ -73,7 +73,7 @@ class ArduinoSerialRelay:
     """
     
     DEFAULT_BAUD = 112500
-    RELAY_DELAY_MS = 50  # ms to wait after command
+    RELAY_DELAY_MS = 1000  # ms to wait after command (mechanical relays need ~1s)
     
     def __init__(
         self,
