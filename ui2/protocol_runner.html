@@ -342,12 +342,7 @@
 
                         <hr class="divider mt-2 mb-2">
 
-                        <!-- 🌀 Pixels -->
-                        <div class="group-title">2. Pixels (Global Override)</div>
-                        <div class="form-group">
-                            <label>Pixel Sequence (e.g. 1-6 or 1,2,8)</label>
-                            <input type="text" id="pixelOverride" value="1-6">
-                        </div>
+
 
                         <hr class="divider mt-2 mb-2">
 
@@ -357,13 +352,14 @@
                             <div class="form-group">
                                 <label>Mode</label>
                                 <select id="lightMode" onchange="toggleLightMode()">
-                                    <option value="current">Current (A)</option>
-                                    <option value="irradiance">Irradiance (W/cm²)</option>
+                                    <option value="none">Use Protocol Default</option>
+                                    <option value="current">Force Current (A)</option>
+                                    <option value="irradiance">Force Irradiance (W/cm²)</option>
                                 </select>
                             </div>
                         </div>
 
-                        <div id="lightCurrentGroup">
+                        <div id="lightCurrentGroup" class="hidden">
                             <div class="form-group">
                                 <label>LED Current (A)</label>
                                 <input type="number" id="lightCurrent" value="0.001" step="0.0001">
@@ -376,13 +372,21 @@
                                     <label>Calibration File</label>
                                     <select id="calFile" onchange="loadCalData()"></select>
                                 </div>
-                                <div class="form-group">
+                                <div class="form-group" id="targetIrrWrap">
                                     <label>Target (W/cm²)</label>
                                     <input type="number" id="targetIrr" value="0.001" step="0.0001"
                                         oninput="calculateCurrent()">
                                 </div>
                             </div>
                             <div id="calResult" class="text-success text-small font-bold"></div>
+                        </div>
+
+                        <hr class="divider mt-2 mb-2">
+
+                        <!-- 🔄 Dynamic Loop Overrides -->
+                        <div class="group-title">4. Dynamic Loop Overrides</div>
+                        <div id="dynamicLoops" class="mt-2">
+                            <div class="text-muted text-small">Select a protocol to see available loops.</div>
                         </div>
                     </div>
                 </div>
@@ -510,13 +514,58 @@
                 selectedYaml = res.content;
                 document.getElementById('yamlPreview').textContent = JSON.stringify(selectedYaml, null, 2);
 
-                // Set initial sequence if found
-                const loops = findLoops(selectedYaml.steps, 'pixel');
-                if (loops.length > 0) {
-                    const seq = loops[0].params.sequence;
-                    document.getElementById('pixelOverride').value = seq.join(',');
+                // Detect Loops
+                const loops = findLoops(selectedYaml.steps);
+                renderDynamicLoops(loops);
+
+                // Pre-fill calibration if found in meta
+                if (selectedYaml.parameters && selectedYaml.parameters.cal_file) {
+                    const select = document.getElementById('calFile');
+                    if (select) {
+                        select.value = selectedYaml.parameters.cal_file;
+                        loadCalData();
+                    }
                 }
             }
+        }
+
+        function renderDynamicLoops(loops) {
+            const container = document.getElementById('dynamicLoops');
+            if (loops.length === 0) {
+                container.innerHTML = '<div class="text-muted text-small">No editable loops found in this protocol.</div>';
+                return;
+            }
+
+            container.innerHTML = loops.map((l, i) => {
+                const purpose = getLoopPurpose(l);
+                const val = (l.params.sequence || []).join(', ') ||
+                    (l.params.range ? `${l.params.range.start}-${l.params.range.stop} (Range)` : '');
+
+                return `
+                <div class="form-group mb-2" data-loop-idx="${i}">
+                    <label class="flex-between">
+                        <span>Loop: <span class="text-cyan font-bold">${l.params.variable}</span></span>
+                        <span class="text-muted text-tiny italic">${purpose}</span>
+                    </label>
+                    <input type="text" class="loop-override-val" 
+                           data-loop-idx="${i}"
+                           data-variable="${l.params.variable}"
+                           value="${val}">
+                </div>
+            `}).join('');
+        }
+
+        function getLoopPurpose(loop) {
+            const steps = loop.steps || [];
+            const actions = steps.map(s => s.action).join(' ');
+            const vars = JSON.stringify(steps).toLowerCase();
+
+            if (actions.includes('relays/pixel')) return "Pixel Mapping";
+            if (actions.includes('smu/set') && vars.includes('intensity')) return "Intensity Sweep";
+            if (actions.includes('smu/sweep')) return "Measurement Sweep";
+            if (actions.includes('wait') && steps.length < 3) return "Wait/Delay Loop";
+
+            return "General Loop";
         }
 
         // --- UI Initialization ---
@@ -540,6 +589,10 @@
             const mode = document.getElementById('lightMode').value;
             document.getElementById('lightCurrentGroup').classList.toggle('hidden', mode !== 'current');
             document.getElementById('lightIrradianceGroup').classList.toggle('hidden', mode !== 'irradiance');
+
+            // If we have an intensity loop, maybe we want to hide the single target input
+            const hasIntensityLoop = !!document.querySelector('.loop-override-val[data-variable="intensity_val"]');
+            document.getElementById('targetIrrWrap').classList.toggle('hidden', mode === 'irradiance' && hasIntensityLoop);
         }
 
         async function loadCalibrationFiles() {
@@ -589,11 +642,11 @@
             return found;
         }
 
-        function findLoops(steps, variable) {
+        function findLoops(steps) {
             let found = [];
             for (let s of steps) {
-                if (s.action === 'control/loop' && s.params.variable === variable) found.push(s);
-                if (s.steps) found = found.concat(findLoops(s.steps, variable));
+                if (s.action === 'control/loop') found.push(s);
+                if (s.steps) found = found.concat(findLoops(s.steps));
             }
             return found;
         }
@@ -635,15 +688,64 @@
                 }
             });
 
-            // 2. Pixels
-            const loops = findLoops(yaml.steps, 'pixel');
-            const seq = Utils.parsePixelString(document.getElementById('pixelOverride').value);
-            loops.forEach(l => l.params.sequence = seq);
 
-            // 3. Light Source (smu/set)
-            const setSteps = findSteps(yaml.steps, 'smu/set');
-            const ledVal = parseFloat(document.getElementById('lightCurrent').value);
-            setSteps.forEach(s => s.params.value = ledVal);
+            // 2. Dynamic Loop Overrides (Pixels, Intensity, generic loops)
+
+            // 2. Dynamic Loop Overrides (Targeted by Index)
+            const overrideInputs = document.querySelectorAll('.loop-override-val');
+            const allLoopsInYaml = findLoops(yaml.steps);
+
+            overrideInputs.forEach(input => {
+                const loopIdx = parseInt(input.getAttribute('data-loop-idx'));
+                const varName = input.getAttribute('data-variable');
+                const rawVal = input.value;
+                const targetLoop = allLoopsInYaml[loopIdx];
+
+                if (!targetLoop) return;
+
+                let seq = rawVal.split(',').map(v => v.trim()).filter(v => v).map(v => {
+                    return isNaN(v) ? v : parseFloat(v);
+                });
+
+                // Clear range if we are setting a sequence
+                if (seq.length > 0) {
+                    delete targetLoop.params.range;
+                    targetLoop.params.sequence = seq;
+                }
+
+                // Special case: if this is an intensity loop and we are in irradiance mode
+                if (varName === 'intensity_val' && document.getElementById('lightMode').value === 'irradiance' && calData) {
+                    // Convert the sequence to current via calibration
+                    function interpolate(x, xArr, yArr) {
+                        if (x <= xArr[0]) return yArr[0];
+                        if (x >= xArr[xArr.length - 1]) return yArr[yArr.length - 1];
+                        for (let i = 0; i < xArr.length - 1; i++) {
+                            if (x >= xArr[i] && x <= xArr[i + 1]) {
+                                const t = (x - xArr[i]) / (xArr[i + 1] - xArr[i]);
+                                return yArr[i] + t * (yArr[i + 1] - yArr[i]);
+                            }
+                        }
+                        return yArr[0];
+                    }
+                    targetLoop.params.sequence = seq.map(irrad => {
+                        const curr = interpolate(irrad, calData.irradiances, calData.currents);
+                        return parseFloat(curr.toFixed(8));
+                    });
+                }
+            });
+
+            // 4. Light Source Static Override (smu/set steps NOT inside loops)
+            const lightMode = document.getElementById('lightMode').value;
+            if (lightMode !== 'none') {
+                const setSteps = findSteps(yaml.steps, 'smu/set');
+                const ledVal = parseFloat(document.getElementById('lightCurrent').value);
+                setSteps.forEach(s => {
+                    // Only override if NOT already using a variable (loop-based)
+                    if (typeof s.params.value !== 'string' || !s.params.value.startsWith('$')) {
+                        s.params.value = ledVal;
+                    }
+                });
+            }
 
             // Start API
             const res = await UI2.runInlineProtocol(yaml);

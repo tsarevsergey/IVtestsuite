@@ -129,6 +129,10 @@
                         <h3>Light → Dark (Batch)</h3>
                         <p>Measure all pixels under illumination, then all pixels in dark.</p>
                     </div>
+                    <div class="template-card" onclick="selectTemplate('iv_intensity')">
+                        <h3>IV-Intensity Sweep</h3>
+                        <p>Measure 1 pixel across multiple illumination intensities.</p>
+                    </div>
                 </div>
 
                 <div class="panel mt-2">
@@ -368,6 +372,34 @@
                             <div id="calInfo" class="text-small text-muted mt-1">Select a file to see ranges</div>
                             <div id="convResult" class="alert-info mt-2 hidden"></div>
                         </div>
+
+                        <!-- Intensity Sweep Group -->
+                        <div id="intensitySweepGroup" class="hidden mt-2">
+                            <div class="group-title">📈 Intensity Sweep</div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label id="sweepStartLabel">Start</label>
+                                    <input type="number" id="intensity_start" value="0.0001" step="0.0001">
+                                </div>
+                                <div class="form-group">
+                                    <label id="sweepStopLabel">Stop</label>
+                                    <input type="number" id="intensity_stop" value="0.001" step="0.001">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Steps</label>
+                                    <input type="number" id="intensity_points" value="5">
+                                </div>
+                                <div class="form-group">
+                                    <label>Scale</label>
+                                    <select id="intensity_scale">
+                                        <option value="linear">Linear</option>
+                                        <option value="log">Log</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -410,7 +442,8 @@
         const DESCRIPTIONS = {
             'multipixel_iv': 'Perform a standard IV sweep on a series of pixels sequentially. Each pixel is connected via relay, swept, and the data is saved.',
             'dark_light_batch': 'Batch operation: Firstly scans ALL specified pixels in the dark, then scans ALL pixels again with the light source ON.',
-            'light_dark_batch': 'Batch operation: Firstly scans ALL specified pixels with the light source ON, then scans ALL pixels again in the dark.'
+            'light_dark_batch': 'Batch operation: Firstly scans ALL specified pixels with the light source ON, then scans ALL pixels again in the dark.',
+            'iv_intensity': 'Detailed characterization: Starts with a dark IV on the selected pixel, then sweeps illumination intensity (current or irradiance) and measures IV at each step.'
         };
 
         // Initialize
@@ -424,19 +457,51 @@
         function selectTemplate(id) {
             currentTemplate = id;
             document.querySelectorAll('.template-card').forEach(c => c.classList.remove('active'));
-            const idxMap = { 'multipixel_iv': 0, 'dark_light_batch': 1, 'light_dark_batch': 2 };
+            const idxMap = {
+                'multipixel_iv': 0,
+                'dark_light_batch': 1,
+                'light_dark_batch': 2,
+                'iv_intensity': 3
+            };
             document.querySelectorAll('.template-card')[idxMap[id]].classList.add('active');
 
             document.getElementById('templateDesc').textContent = DESCRIPTIONS[id];
 
             // Toggle visibility of fields
             const isBatch = id !== 'multipixel_iv';
+            const isIntensity = id === 'iv_intensity';
+
             document.getElementById('batchFields').classList.toggle('hidden', !isBatch);
             document.getElementById('lightHwFields').classList.toggle('hidden', !isBatch);
             document.getElementById('lightSourceSection').classList.toggle('hidden', !isBatch);
 
+            // Intensity specific toggles
+            document.getElementById('intensitySweepGroup').classList.toggle('hidden', !isIntensity);
+
             // Adjust hardware titles
             document.getElementById('hwTitle').textContent = isBatch ? '📐 Sweep Channel Config' : '⚙️ Hardware Config';
+
+            // If intensity, update labels
+            updateIntensityLabels();
+        }
+
+        function updateIntensityLabels() {
+            const isIrrad = document.getElementById('modeIrradiance').classList.contains('active');
+            const unit = isIrrad ? 'W/cm²' : 'A';
+            document.getElementById('sweepStartLabel').textContent = `Start (${unit})`;
+            document.getElementById('sweepStopLabel').textContent = `Stop (${unit})`;
+
+            // Also hide/show the single input mode if in intensity loop
+            const isIntensity = currentTemplate === 'iv_intensity';
+            document.getElementById('currentGroup').classList.toggle('hidden', isIntensity || !document.getElementById('modeCurrent').classList.contains('active'));
+            document.getElementById('irradianceGroup').classList.toggle('hidden', (isIntensity && !isIrrad) || (!isIntensity && !isIrrad));
+            // Show only cal file selection for irradiance intensity sweep
+            if (isIntensity && isIrrad) {
+                document.getElementById('irradianceGroup').classList.remove('hidden');
+                document.querySelector('#irradianceGroup .form-group:nth-child(2)').classList.add('hidden'); // Hide target single input
+            } else if (!isIntensity && isIrrad) {
+                document.querySelector('#irradianceGroup .form-group:nth-child(2)').classList.remove('hidden');
+            }
         }
 
         function toggleSteadyState() {
@@ -493,8 +558,7 @@
         function setLightMode(mode) {
             document.getElementById('modeCurrent').classList.toggle('active', mode === 'current');
             document.getElementById('modeIrradiance').classList.toggle('active', mode === 'irradiance');
-            document.getElementById('currentGroup').classList.toggle('hidden', mode !== 'current');
-            document.getElementById('irradianceGroup').classList.toggle('hidden', mode !== 'irradiance');
+            updateIntensityLabels();
         }
 
         function getParams() {
@@ -530,7 +594,15 @@
                 bias_compliance: parseFloat(document.getElementById('bias_compliance')?.value || 9.0),
                 bias_compliance_type: document.getElementById('bias_compliance_type')?.value || 'VOLT',
                 light_current: parseFloat(document.getElementById('light_current').value),
-                led_wavelength: parseInt(document.getElementById('led_wavelength')?.value || 0)
+                led_wavelength: parseInt(document.getElementById('led_wavelength')?.value || 0),
+
+                // Intensity Sweep
+                intensity_start: parseFloat(document.getElementById('intensity_start').value),
+                intensity_stop: parseFloat(document.getElementById('intensity_stop').value),
+                intensity_points: parseInt(document.getElementById('intensity_points').value),
+                intensity_scale: document.getElementById('intensity_scale').value,
+                is_irradiance: document.getElementById('modeIrradiance').classList.contains('active'),
+                cal_file: document.getElementById('calFile').value
             };
         }
 
@@ -552,6 +624,8 @@
 
             if (currentTemplate === 'multipixel_iv') {
                 generatedYaml = generateMultipixelIV(p, pixels);
+            } else if (currentTemplate === 'iv_intensity') {
+                generatedYaml = generateIntensitySweep(p, pixels);
             } else {
                 generatedYaml = generateBatchSweep(p, pixels, currentTemplate === 'dark_light_batch' ? 'dark_first' : 'light_first');
             }
@@ -599,6 +673,122 @@
                     { action: 'smu/output', params: { enabled: false } },
                     { action: 'relays/all-off' }
                 ]
+            };
+        }
+
+        function generateIntensitySweep(p, pixels) {
+            // Use only the first pixel if multiple are selected for intensity sweep
+            const pixel = pixels[0];
+            const isIrrad = p.is_irradiance;
+
+            // 1. Generate Intensity Sequence
+            let intensitySequence = [];
+            const s = p.intensity_start;
+            const e = p.intensity_stop;
+            const n = p.intensity_points;
+
+            if (p.intensity_scale === 'log') {
+                const startLog = Math.log10(s);
+                const stopLog = Math.log10(e);
+                for (let i = 0; i < n; i++) {
+                    intensitySequence.push(parseFloat(Math.pow(10, startLog + (stopLog - startLog) * i / (n - 1)).toExponential(4)));
+                }
+            } else {
+                for (let i = 0; i < n; i++) {
+                    intensitySequence.push(parseFloat((s + (e - s) * i / (n - 1)).toExponential(4)));
+                }
+            }
+
+            const modeLabel = isIrrad ? 'Wcm2' : 'A';
+
+            const steps = [
+                { action: 'smu/connect', params: { channel: 1, mock: false } },
+                { action: 'smu/connect', params: { channel: 2, mock: false } },
+                { action: 'relays/connect', params: { mock: false } },
+                { action: 'wait', params: { seconds: 1.0 } },
+                { action: 'relays/all-off' },
+                { action: 'wait', params: { seconds: 1.0 } },
+
+                // PHASE 1: DARK MEASUREMENT
+                { action: 'relays/led', params: { channel_id: 0 } },
+                { action: 'relays/pixel', params: { pixel_id: pixel } },
+                { action: 'wait', params: { seconds: 1.0 } },
+                {
+                    action: 'smu/configure',
+                    params: { channel: p.sweep_channel, compliance: p.sweep_compliance, compliance_type: p.sweep_compliance_type, nplc: p.nplc }
+                },
+                { action: 'smu/source-mode', params: { channel: p.sweep_channel, mode: p.sweep_mode } },
+                {
+                    action: 'smu/sweep',
+                    params: {
+                        channel: p.sweep_channel, start: p.start_v, stop: p.stop_v, points: p.points,
+                        delay: p.delay, sweep_type: p.sweep_type, direction: p.direction,
+                        keep_output_on: false
+                    },
+                    capture_as: 'dark_iv'
+                },
+                {
+                    action: 'data/save',
+                    params: { data: '$dark_iv', filename: `${p.sample_name}_P${pixel}_DARK` }
+                },
+
+                // PHASE 2: INTENSITY SWEEP (Now using a Loop)
+                { action: 'relays/led', params: { channel_id: p.led_wavelength - 1 } },
+                { action: 'smu/configure', params: { channel: p.light_channel, compliance: p.bias_compliance, compliance_type: p.bias_compliance_type, nplc: p.nplc } },
+                { action: 'smu/source-mode', params: { channel: p.light_channel, mode: p.bias_mode } },
+                { action: 'smu/output', params: { channel: p.light_channel, enabled: true } },
+                { action: 'wait', params: { seconds: 2.0 } },
+                {
+                    action: 'control/loop',
+                    params: {
+                        variable: 'intensity_val',
+                        sequence: intensitySequence
+                    },
+                    steps: [
+                        {
+                            action: 'smu/set',
+                            params: {
+                                channel: p.light_channel,
+                                value: '$intensity_val'
+                            }
+                        },
+                        { action: 'wait', params: { seconds: p.wait_time } },
+                        {
+                            action: 'smu/sweep',
+                            params: {
+                                channel: p.sweep_channel, start: p.start_v, stop: p.stop_v, points: p.points,
+                                delay: p.delay, sweep_type: p.sweep_type, direction: p.direction,
+                                keep_output_on: true
+                            },
+                            capture_as: 'light_iv'
+                        },
+                        {
+                            action: 'data/save',
+                            params: {
+                                data: '$light_iv',
+                                filename: `${p.sample_name}_P${pixel}_{$intensity_val}${modeLabel}`
+                            }
+                        }
+                    ]
+                },
+
+                // Cleanup
+                { action: 'smu/output', params: { channel: p.sweep_channel, enabled: false } },
+                { action: 'smu/output', params: { channel: p.light_channel, enabled: false } },
+                { action: 'relays/all-off' }
+            ];
+
+            return {
+                name: p.protocol_name,
+                description: `IV-Intensity sweep on Pixel ${pixel}. ${n} steps.`,
+                version: 3.0,
+                // Add metadata for easier runner recognition
+                parameters: {
+                    pixel_id: pixel,
+                    intensity_mode: isIrrad ? 'irradiance' : 'current',
+                    cal_file: isIrrad ? p.cal_file : null
+                },
+                steps: steps
             };
         }
 

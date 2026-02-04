@@ -1,0 +1,195 @@
+name: My New Protocol
+description: IV-Intensity sweep on Pixel 1. 5 steps from 0.0001 to 0.001 A.
+version: 2.1
+steps:
+- action: smu/connect
+  params:
+    channel: 1
+    mock: false
+- action: smu/connect
+  params:
+    channel: 2
+    mock: false
+- action: relays/connect
+  params:
+    mock: false
+- action: wait
+  params:
+    seconds: 1
+- action: relays/all-off
+- action: wait
+  params:
+    seconds: 1
+- action: relays/led
+  params:
+    channel_id: 0
+- action: relays/pixel
+  params:
+    pixel_id: 1
+- action: wait
+  params:
+    seconds: 1
+- action: smu/configure
+  params:
+    channel: 2
+    compliance: 0.1
+    compliance_type: CURR
+    nplc: 1
+- action: smu/source-mode
+  params:
+    channel: 2
+    mode: VOLT
+- action: smu/sweep
+  params:
+    channel: 2
+    start: 0
+    stop: 1
+    points: 11
+    delay: 0.05
+    sweep_type: double
+    direction: forward
+    keep_output_on: false
+  capture_as: dark_iv
+- action: data/save
+  params:
+    data: $dark_iv
+    filename: TEST_P1_DARK
+- action: relays/led
+  params:
+    channel_id: 1
+- action: smu/configure
+  params:
+    channel: 1
+    compliance: 9
+    compliance_type: VOLT
+    nplc: 1
+- action: smu/source-mode
+  params:
+    channel: 1
+    mode: CURR
+- action: smu/output
+  params:
+    channel: 1
+    enabled: true
+- action: wait
+  params:
+    seconds: 2
+- action: smu/set
+  params:
+    channel: 1
+    value: 0.0001
+- action: wait
+  params:
+    seconds: 0.5
+- action: smu/sweep
+  params:
+    channel: 2
+    start: 0
+    stop: 1
+    points: 11
+    delay: 0.05
+    sweep_type: double
+    direction: forward
+    keep_output_on: true
+  capture_as: iv_int_0
+- action: data/save
+  params:
+    data: $iv_int_0
+    filename: TEST_P1_1.00e-4A
+- action: smu/set
+  params:
+    channel: 1
+    value: 0.000325
+- action: wait
+  params:
+    seconds: 0.5
+- action: smu/sweep
+  params:
+    channel: 2
+    start: 0
+    stop: 1
+    points: 11
+    delay: 0.05
+    sweep_type: double
+    direction: forward
+    keep_output_on: true
+  capture_as: iv_int_1
+- action: data/save
+  params:
+    data: $iv_int_1
+    filename: TEST_P1_3.25e-4A
+- action: smu/set
+  params:
+    channel: 1
+    value: 0.00055
+- action: wait
+  params:
+    seconds: 0.5
+- action: smu/sweep
+  params:
+    channel: 2
+    start: 0
+    stop: 1
+    points: 11
+    delay: 0.05
+    sweep_type: double
+    direction: forward
+    keep_output_on: true
+  capture_as: iv_int_2
+- action: data/save
+  params:
+    data: $iv_int_2
+    filename: TEST_P1_5.50e-4A
+- action: smu/set
+  params:
+    channel: 1
+    value: 0.0007750000000000001
+- action: wait
+  params:
+    seconds: 0.5
+- action: smu/sweep
+  params:
+    channel: 2
+    start: 0
+    stop: 1
+    points: 11
+    delay: 0.05
+    sweep_type: double
+    direction: forward
+    keep_output_on: true
+  capture_as: iv_int_3
+- action: data/save
+  params:
+    data: $iv_int_3
+    filename: TEST_P1_7.75e-4A
+- action: smu/set
+  params:
+    channel: 1
+    value: 0.001
+- action: wait
+  params:
+    seconds: 0.5
+- action: smu/sweep
+  params:
+    channel: 2
+    start: 0
+    stop: 1
+    points: 11
+    delay: 0.05
+    sweep_type: double
+    direction: forward
+    keep_output_on: true
+  capture_as: iv_int_4
+- action: data/save
+  params:
+    data: $iv_int_4
+    filename: TEST_P1_1.00e-3A
+- action: smu/output
+  params:
+    channel: 2
+    enabled: false
+- action: smu/output
+  params:
+    channel: 1
+    enabled: false
+- action: relays/all-off
