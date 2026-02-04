@@ -815,20 +815,22 @@
                 historyCursor = history.length;
 
                 newEvents.forEach(e => {
-                    const varName = e.variable || "";
-                    if ((varName.endsWith('iv_data') || varName.endsWith('steady_data')) && e.value && e.value.results) {
-                        const pixel = e.context?.pixel;
+                    const varName = (e.variable || "").toLowerCase();
+                    const isIV = varName.includes('iv');
+                    const isSteady = varName.includes('steady');
+
+                    if ((isIV || isSteady) && e.value && e.value.results) {
+                        const pixel = e.context?.pixel || e.context?.pixel_id;
                         const results = e.value.results;
-                        const isSteady = varName.endsWith('steady_data');
                         const targetList = isSteady ? steadyTraces : traces;
 
                         if (typeof results === 'object' && !Array.isArray(results)) {
                             // Multichannel
                             Object.keys(results).forEach(ch => {
-                                targetList.push({ pixel, channel: ch, data: results[ch], name: varName });
+                                targetList.push({ pixel, channel: ch, data: results[ch], name: e.variable });
                             });
                         } else {
-                            targetList.push({ pixel, channel: e.value.channel || 1, data: results, name: varName });
+                            targetList.push({ pixel, channel: e.value.channel || 1, data: results, name: e.variable });
                         }
                     }
                 });

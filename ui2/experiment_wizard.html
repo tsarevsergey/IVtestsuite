@@ -725,11 +725,11 @@
                         delay: p.delay, sweep_type: p.sweep_type, direction: p.direction,
                         keep_output_on: false
                     },
-                    capture_as: 'dark_iv'
+                    capture_as: 'dark_iv_data'
                 },
                 {
                     action: 'data/save',
-                    params: { data: '$dark_iv', filename: `${p.sample_name}_P${pixel}_DARK` }
+                    params: { data: '$dark_iv_data', filename: `${p.sample_name}_P${pixel}_DARK` }
                 },
 
                 // PHASE 2: INTENSITY SWEEP (Now using a Loop)
@@ -760,12 +760,12 @@
                                 delay: p.delay, sweep_type: p.sweep_type, direction: p.direction,
                                 keep_output_on: true
                             },
-                            capture_as: 'light_iv'
+                            capture_as: 'light_iv_data'
                         },
                         {
                             action: 'data/save',
                             params: {
-                                data: '$light_iv',
+                                data: '$light_iv_data',
                                 filename: `${p.sample_name}_P${pixel}_{$intensity_val}${modeLabel}`
                             }
                         }
