@@ -152,6 +152,13 @@ async function abortProtocol() {
 }
 
 /**
+ * Clear protocol cache and reload from disk
+ */
+async function reloadProtocols() {
+    return await api('POST', '/protocol/reload');
+}
+
+/**
  * User Management
  */
 function getCurrentUser() {
@@ -205,6 +212,7 @@ window.UI2 = {
     getProtocolStatus,
     getProtocolHistory,
     abortProtocol,
+    reloadProtocols,
     getCurrentUser,
     setCurrentUser,
     getUsers,

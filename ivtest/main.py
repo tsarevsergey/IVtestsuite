@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .logging_config import setup_logging, get_logger
+from .logging_config import setup_logging, get_logger, EndpointFilter
 from .run_manager import run_manager
 from .routers import status, smu, relays, protocol, data, calibration, monitor
 
@@ -26,6 +26,11 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     logger.info("IV Test Software backend starting...")
+    
+    # Filter out noisy access logs
+    import logging
+    logging.getLogger("uvicorn.access").addFilter(EndpointFilter("/status", "/smu/status", "/relays/status", "/protocol/status"))
+    
     logger.info(f"Initial state: {run_manager.state.value}")
     
     yield

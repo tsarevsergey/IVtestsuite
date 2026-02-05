@@ -619,7 +619,8 @@
 
             Utils.showToast("Configuring Illumination...");
             if (wavelength > 0) {
-                await UI2.api('POST', '/relays/led', { channel_id: wavelength - 1 });
+                // Wavelengths are 2,3,4. Map to 0,1,2 for backend.
+                await UI2.api('POST', '/relays/led', { channel_id: wavelength - 2 });
             }
 
             await UI2.api('POST', '/smu/configure', { channel, compliance, compliance_type: 'VOLT', nplc: 1 });

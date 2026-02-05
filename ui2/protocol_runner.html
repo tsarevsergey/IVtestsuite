@@ -7,6 +7,7 @@
     <title>Protocol Runner - UI2</title>
     <link rel="stylesheet" href="css/theme.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <script src="js/api.js"></script>
     <script src="js/utils.js"></script>
     <style>
@@ -222,6 +223,75 @@
             color: var(--accent-cyan);
             font-weight: bold;
         }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: var(--bg-panel);
+            margin: 5vh auto;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 1200px;
+            height: 85vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+        }
+
+        .close {
+            color: var(--text-secondary);
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .close:hover {
+            color: white;
+        }
+
+        .mermaid-container {
+            flex: 1;
+            overflow: auto;
+            background: #fdfdfd;
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Adjust mermaid text color to be visible on white bg */
+        .mermaid {
+            color: #333;
+        }
     </style>
 </head>
 
@@ -250,11 +320,13 @@
                     </div>
                 </div>
 
-                <div class="panel mt-2">
-                    <div class="panel-title">Current Protocol</div>
-                    <pre class="code-block" style="font-size: 0.7rem; max-height: 200px;"
-                        id="yamlPreview">Select a protocol</pre>
+                <div class="panel-title flex-between">
+                    <span>Current Protocol</span>
+                    <button class="btn btn-outline btn-xs" id="btnVisualize" onclick="visualizeProtocol()" disabled>🔍
+                        Visualize</button>
                 </div>
+                <pre class="code-block" style="font-size: 0.7rem; max-height: 200px;"
+                    id="yamlPreview">Select a protocol</pre>
             </div>
 
             <!-- Right: Main Area -->
@@ -452,6 +524,28 @@
         </div>
     </div>
 
+    <!-- Visualization Modal -->
+    <div id="visualizeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="flex-between" style="gap: 20px;">
+                    <span class="modal-title" id="vizModalTitle">Protocol Scheme</span>
+                    <label class="checkbox-label" style="font-size: 0.8rem; margin: 0;">
+                        <input type="checkbox" id="vizShortVersion" onchange="visualizeProtocol()"> Short Version (Skip
+                        Setup/Wait)
+                    </label>
+                </div>
+                <span class="close" onclick="closeVisualizeModal()">&times;</span>
+            </div>
+            <div class="mermaid-container">
+                <div class="mermaid" id="mermaidOutput">
+                    graph TD
+                    Start((Start)) --> End((End))
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- State ---
         let allProtocols = [];
@@ -484,6 +578,8 @@
 
         // --- Protocol Loading ---
         async function loadProtocolsList() {
+            // Force backend to reload protocols from disk
+            await UI2.reloadProtocols();
             const res = await UI2.getProtocolList();
             if (res && res.protocols) {
                 allProtocols = res.protocols;
@@ -540,6 +636,8 @@
                 } else {
                     document.getElementById('pixelOverride').value = "";
                 }
+
+                document.getElementById('btnVisualize').disabled = false;
 
                 // Pre-fill calibration if found in meta
                 if (selectedYaml.parameters && selectedYaml.parameters.cal_file) {
@@ -1029,6 +1127,142 @@
                 };
             });
             steadyChart.update('none');
+        }
+
+        // --- Visualization ---
+        function closeVisualizeModal() {
+            document.getElementById('visualizeModal').style.display = 'none';
+        }
+
+        async function visualizeProtocol() {
+            if (!selectedYaml) return;
+
+            const modal = document.getElementById('visualizeModal');
+            const output = document.getElementById('mermaidOutput');
+            const title = document.getElementById('vizModalTitle');
+            const isShort = document.getElementById('vizShortVersion').checked;
+
+            title.textContent = `Scheme: ${selectedProtocol.id}`;
+            modal.style.display = 'block';
+
+            if (!selectedYaml.steps || selectedYaml.steps.length === 0) {
+                output.innerHTML = "No steps to visualize.";
+                return;
+            }
+
+            // --- Mermaid Generation Logic ---
+            let mermaidCode = 'graph TD\n';
+            mermaidCode += '  Start((Start)) --> ';
+
+            // Recursive function to generate graph
+            // Returns: { code: string, firstId: string, lastId: string }
+            function processSteps(steps, prefix) {
+                let code = '';
+                let firstRenderedId = null;
+                let lastRenderedId = null;
+
+                // 1. Filter Steps
+                const filteredSteps = steps.filter((s, idx) => {
+                    if (!isShort) return true;
+                    // Short mode filters
+                    const action = s.action || "";
+                    if (action.includes('connect')) return false;
+                    if (action.includes('configure')) return false;
+                    if (action.includes('mode')) return false;
+                    if (action === 'wait') return false;
+                    return true;
+                });
+
+                if (filteredSteps.length === 0) {
+                    return { code: '', firstId: null, lastId: null };
+                }
+
+                // 2. Iterate
+                filteredSteps.forEach((step, idx) => {
+                    const id = `${prefix}_${idx}`;
+
+                    // Track linking
+                    if (!firstRenderedId) firstRenderedId = id;
+                    if (lastRenderedId) {
+                        code += `  ${lastRenderedId} --> ${id}\n`;
+                    }
+                    lastRenderedId = id;
+
+                    // Generate Label
+                    let label = step.action || 'Unknown';
+                    // Simplify label text
+                    if (step.action === 'control/loop') {
+                        const p = step.params;
+                        label = `LOOP: ${p.variable}`;
+                        if (p.sequence) label += ` [${p.sequence.slice(0, 3).join(',')}${p.sequence.length > 3 ? '...' : ''}]`;
+                        else if (p.range) label += ` ${p.range.start}-${p.range.stop}`;
+                        else if (p.count) label += ` ${p.count}x`;
+                    } else if (step.action === 'smu/sweep') {
+                        label = `SWEEP: ${step.params.start}→${step.params.stop}V`;
+                    } else if (step.action === 'relays/pixel') {
+                        label = `PIXEL ${step.params.pixel_id}`;
+                    } else if (step.action === 'relays/led') {
+                        label = `LED ${step.params.channel_id}`;
+                    } else if (step.action.startsWith('smu/')) {
+                        label = step.action.replace('smu/', '').toUpperCase();
+                        if (step.params && step.params.value !== undefined) label += `: ${step.params.value}`;
+                    } else if (step.action.startsWith('data/')) {
+                        label = step.action.replace('data/', '').toUpperCase();
+                    }
+
+                    // Escape strings for Mermaid
+                    label = label.replace(/"/g, "'");
+
+                    // Node Shape & Inner Logic
+                    if (step.action === 'control/loop') {
+                        code += `  ${id}{"${label}"}\n`;
+
+                        // Recurse for loop body
+                        const subResult = processSteps(step.steps || [], id + 'sub');
+
+                        if (subResult.code && subResult.firstId) {
+                            code += subResult.code;
+                            // Loop Start -> Inner First
+                            code += `  ${id} -- next --> ${subResult.firstId}\n`;
+                            // Inner Last -> Loop Start (The actual loop back)
+                            code += `  ${subResult.lastId} -- loop --> ${id}\n`;
+                        } else {
+                            // Empty loop body
+                            code += `  ${id} -- (empty) --> ${id}\n`;
+                        }
+                    } else {
+                        // Standard Box
+                        code += `  ${id}["${label}"]\n`;
+                    }
+                });
+
+                return { code, firstId: firstRenderedId, lastId: lastRenderedId };
+            }
+
+            const result = processSteps(selectedYaml.steps, 'S');
+
+            if (result.code) {
+                mermaidCode += `${result.firstId}\n`; // Link Start to first node
+                mermaidCode += result.code;
+                mermaidCode += `  ${result.lastId} --> End((End))\n`;
+            } else {
+                mermaidCode += `End((End))\n`;
+            }
+
+            console.log("Mermaid Code:", mermaidCode);
+
+            // Re-render mermaid
+            output.removeAttribute('data-processed');
+            output.innerHTML = mermaidCode;
+
+            try {
+                await mermaid.run({
+                    nodes: [output]
+                });
+            } catch (e) {
+                console.error("Mermaid Render Error:", e);
+                output.innerHTML = `<div class="text-error">Visualization Error: ${e.message}</div>`;
+            }
         }
     </script>
 </body>

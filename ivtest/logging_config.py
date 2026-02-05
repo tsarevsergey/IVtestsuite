@@ -54,3 +54,16 @@ def setup_logging(log_dir: str = "logs", level: int = logging.INFO) -> logging.L
 def get_logger(name: str) -> logging.Logger:
     """Get a child logger for a specific module."""
     return logging.getLogger(f"ivtest.{name}")
+
+
+class EndpointFilter(logging.Filter):
+    """
+    Filter out access logs for specific endpoints (e.g. status polling).
+    """
+    def __init__(self, *paths):
+        super().__init__()
+        self.paths = paths
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        return not any(path in msg for path in self.paths)

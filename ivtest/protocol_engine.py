@@ -603,10 +603,10 @@ class ProtocolEngine:
         return relay_controller.select_pixel(pixel_id - 1)
     
     def _action_relays_led(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Activate a specific LED wavelength relay (1-indexed for user)."""
-        channel_id = params.get("channel_id", 1)
-        # Convert 1-indexed user input to 0-indexed internal
-        return relay_controller.select_led_channel(channel_id - 1)
+        """Activate a specific LED wavelength relay."""
+        channel_id = params.get("channel_id", 0)
+        # Parameters are now considered 0-indexed (direct mapping)
+        return relay_controller.select_led_channel(channel_id)
     
     def _action_relays_all_off(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return relay_controller.all_off()
