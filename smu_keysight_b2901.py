@@ -300,13 +300,17 @@ class KeysightB2901Controller(BaseSMU):
             v_str = self.resource.query("MEAS:VOLT?").strip()
             i_str = self.resource.query("MEAS:CURR?").strip()
             
+            v = float(v_str)
+            i = float(i_str)
+            
+            # Handle overload/error values (e.g., 10E37) as None/null
             return {
-                'voltage': float(v_str),
-                'current': float(i_str)
+                'voltage': v if abs(v) < 1e37 else None,
+                'current': i if abs(i) < 1e37 else None
             }
         except Exception as e:
             self.handle_error(f"Measurement failed: {e}")
-            return {'voltage': 0.0, 'current': 0.0}
+            return {'voltage': None, 'current': None}
     
     # -------------------------------------------------------------------------
     # List Sweep (Optional)

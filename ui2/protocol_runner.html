@@ -342,12 +342,27 @@
 
                         <hr class="divider mt-2 mb-2">
 
+                        <!-- 🌀 Pixels -->
+                        <div class="group-title">2. Pixels (Global Override)</div>
+                        <div class="form-group">
+                            <label>Pixel Sequence (e.g. 1-6 or 1,2,8)</label>
+                            <input type="text" id="pixelOverride" value="">
+                            <div class="text-tiny text-muted mt-1 italic">Targets all Pixel and Loop/Pixel actions.
+                            </div>
+                        </div>
 
+                        <hr class="divider mt-2 mb-2">
+
+                        <!-- ⚙️ Parameters -->
+                        <div class="group-title">3. Global Parameter Overrides</div>
+                        <div id="dynamicParams" class="mt-2">
+                            <div class="text-muted text-small">Select a protocol to see parameters.</div>
+                        </div>
 
                         <hr class="divider mt-2 mb-2">
 
                         <!-- 💡 Light Source -->
-                        <div class="group-title">3. Light Source Override</div>
+                        <div class="group-title">4. Light Source Override</div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Mode</label>
@@ -514,9 +529,17 @@
                 selectedYaml = res.content;
                 document.getElementById('yamlPreview').textContent = JSON.stringify(selectedYaml, null, 2);
 
-                // Detect Loops
+                // Detect Loops & Params
                 const loops = findLoops(selectedYaml.steps);
                 renderDynamicLoops(loops);
+                renderDynamicParams(selectedYaml.parameters || {});
+
+                // Pre-fill pixel override if found
+                if (selectedYaml.parameters && selectedYaml.parameters.pixel_id) {
+                    document.getElementById('pixelOverride').value = selectedYaml.parameters.pixel_id;
+                } else {
+                    document.getElementById('pixelOverride').value = "";
+                }
 
                 // Pre-fill calibration if found in meta
                 if (selectedYaml.parameters && selectedYaml.parameters.cal_file) {
@@ -555,14 +578,40 @@
             `}).join('');
         }
 
+        function renderDynamicParams(params) {
+            const container = document.getElementById('dynamicParams');
+            const keys = Object.keys(params);
+            if (keys.length === 0) {
+                container.innerHTML = '<div class="text-muted text-small">No global parameters found.</div>';
+                return;
+            }
+
+            container.innerHTML = keys.map(key => `
+                <div class="form-group mb-2">
+                    <label>${key}</label>
+                    <input type="text" class="param-override-val" 
+                           data-key="${key}"
+                           value="${params[key]}">
+                </div>
+            `).join('');
+        }
+
         function getLoopPurpose(loop) {
             const steps = loop.steps || [];
             const actions = steps.map(s => s.action).join(' ');
             const vars = JSON.stringify(steps).toLowerCase();
 
-            if (actions.includes('relays/pixel')) return "Pixel Mapping";
+            if (actions.includes('relays/pixel')) {
+                if (vars.includes('dark')) return "Pixel Mapping (Dark)";
+                if (vars.includes('light')) return "Pixel Mapping (Light)";
+                return "Pixel Mapping";
+            }
             if (actions.includes('smu/set') && vars.includes('intensity')) return "Intensity Sweep";
-            if (actions.includes('smu/sweep')) return "Measurement Sweep";
+            if (actions.includes('sweep') && actions.includes('save')) {
+                if (vars.includes('dark')) return "Measurement Sweep (Dark)";
+                if (vars.includes('light')) return "Measurement Sweep (Light)";
+                return "Measurement Sweep";
+            }
             if (actions.includes('wait') && steps.length < 3) return "Wait/Delay Loop";
 
             return "General Loop";
@@ -688,10 +737,59 @@
                 }
             });
 
+            // 2. Global Pixel Overrides
+            const pixelVal = document.getElementById('pixelOverride').value;
+            if (pixelVal) {
+                const pixelSteps = findSteps(yaml.steps, 'relays/pixel');
+                const isSequence = pixelVal.includes(',') || pixelVal.includes('-');
 
-            // 2. Dynamic Loop Overrides (Pixels, Intensity, generic loops)
+                if (!isSequence) {
+                    const intPixel = parseInt(pixelVal);
 
-            // 2. Dynamic Loop Overrides (Targeted by Index)
+                    // Attempt to find the "original" pixel from the selected YAML to automate filename replacement
+                    const firstPixelStep = findSteps(selectedYaml.steps, 'relays/pixel')[0];
+                    const originalPixel = firstPixelStep ? firstPixelStep.params.pixel_id : null;
+
+                    pixelSteps.forEach(s => {
+                        // Protect loop variables: only override literal values
+                        if (typeof s.params.pixel_id !== 'string' || !s.params.pixel_id.startsWith('$')) {
+                            s.params.pixel_id = intPixel;
+                        }
+                    });
+
+                    // Automatically update filenames if original pixel is found
+                    if (originalPixel !== null && originalPixel !== intPixel) {
+                        const saveSteps = findSteps(yaml.steps, 'data/save');
+                        const findP1 = `_P${originalPixel}_`;
+                        const replP1 = `_P${intPixel}_`;
+                        const findP2 = `_P${originalPixel}.`;
+                        const replP2 = `_P${intPixel}.`;
+                        saveSteps.forEach(s => {
+                            if (s.params.filename.includes(findP1)) s.params.filename = s.params.filename.split(findP1).join(replP1);
+                            if (s.params.filename.includes(findP2)) s.params.filename = s.params.filename.split(findP2).join(replP2);
+                        });
+                    }
+                } else {
+                    // It's a sequence - target loops instead of flat steps
+                    const pixelLoops = findLoops(yaml.steps).filter(l => l.params.variable === 'pixel' || l.params.variable === 'pixel_id');
+                    const seq = Utils.parsePixelString(pixelVal);
+                    pixelLoops.forEach(l => l.params.sequence = seq);
+                }
+            }
+
+            // 3. Global Parameter Overrides
+            if (!yaml.parameters) yaml.parameters = {};
+            const paramInputs = document.querySelectorAll('.param-override-val');
+            paramInputs.forEach(input => {
+                const key = input.getAttribute('data-key');
+                const val = isNaN(input.value) ? input.value : parseFloat(input.value);
+                yaml.parameters[key] = val;
+
+                // We DON'T pre-apply these to steps to avoid destroying $var logic. 
+                // The engine will resolve them from the parameters block.
+            });
+
+            // 4. Dynamic Loop Overrides (Targeted by Index)
             const overrideInputs = document.querySelectorAll('.loop-override-val');
             const allLoopsInYaml = findLoops(yaml.steps);
 

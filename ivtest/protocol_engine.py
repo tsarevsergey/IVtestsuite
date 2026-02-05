@@ -597,10 +597,16 @@ class ProtocolEngine:
         return relay_controller.disconnect()
     
     def _action_relays_pixel(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        return relay_controller.select_pixel(params.get("pixel_id", 0))
+        """Activate a specific pixel relay (1-indexed for user)."""
+        pixel_id = params.get("pixel_id", 1)
+        # Convert 1-indexed user input to 0-indexed internal
+        return relay_controller.select_pixel(pixel_id - 1)
     
     def _action_relays_led(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        return relay_controller.select_led_channel(params.get("channel_id", 0))
+        """Activate a specific LED wavelength relay (1-indexed for user)."""
+        channel_id = params.get("channel_id", 1)
+        # Convert 1-indexed user input to 0-indexed internal
+        return relay_controller.select_led_channel(channel_id - 1)
     
     def _action_relays_all_off(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return relay_controller.all_off()

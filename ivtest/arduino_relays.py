@@ -441,6 +441,12 @@ class ArduinoRelayController:
             if not self.pixel_board._connected:
                 return {"success": False, "message": "Pixel board not connected"}
             
+            # Convert to int to handle potential string overrides from UI
+            try:
+                pixel_id = int(pixel_id)
+            except (ValueError, TypeError):
+                return {"success": False, "message": f"Invalid pixel ID type: {type(pixel_id)} val={pixel_id}"}
+
             # Convert 0-indexed to 1-indexed for protocol
             relay_num = pixel_id + 1
             

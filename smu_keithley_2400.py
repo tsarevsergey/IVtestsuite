@@ -256,10 +256,14 @@ class Keithley2400Controller(BaseSMU):
             resp = self.resource.query(":READ?").strip()
             parts = resp.split(",")
             
+            v = float(parts[0]) if len(parts) > 0 else 1e38
+            i = float(parts[1]) if len(parts) > 1 else 1e38
+            
+            # Handle overload/error values (e.g., 10E37) as None/null
             return {
-                'voltage': float(parts[0]) if len(parts) > 0 else 0.0,
-                'current': float(parts[1]) if len(parts) > 1 else 0.0
+                'voltage': v if abs(v) < 1e37 else None,
+                'current': i if abs(i) < 1e37 else None
             }
         except Exception as e:
             self.handle_error(f"Measurement failed: {e}")
-            return {'voltage': 0.0, 'current': 0.0}
+            return {'voltage': None, 'current': None}

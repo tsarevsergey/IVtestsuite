@@ -764,7 +764,9 @@
         }
 
         function plotIV(data) {
-            ivChart.data.datasets[0].data = data.map(d => ({ x: d.voltage, y: d.current }));
+            ivChart.data.datasets[0].data = data
+                .filter(d => d.voltage !== null && d.current !== null)
+                .map(d => ({ x: d.voltage, y: d.current }));
             ivChart.update();
         }
 
@@ -774,12 +776,16 @@
 
             // For log scale, ensure we only plot absolute values or non-zero positive
             if (isLog && lastIVData) {
-                ivChart.data.datasets[0].data = lastIVData.map(d => ({
-                    x: d.voltage,
-                    y: Math.abs(d.current) || 1e-12
-                }));
+                ivChart.data.datasets[0].data = lastIVData
+                    .filter(d => d.voltage !== null && d.current !== null)
+                    .map(d => ({
+                        x: d.voltage,
+                        y: Math.abs(d.current) || 1e-12
+                    }));
             } else if (lastIVData) {
-                ivChart.data.datasets[0].data = lastIVData.map(d => ({ x: d.voltage, y: d.current }));
+                ivChart.data.datasets[0].data = lastIVData
+                    .filter(d => d.voltage !== null && d.current !== null)
+                    .map(d => ({ x: d.voltage, y: d.current }));
             }
 
             ivChart.update();
