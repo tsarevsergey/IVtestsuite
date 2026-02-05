@@ -278,6 +278,97 @@
             color: white;
         }
 
+        /* Protocol Activity Tracker Styles */
+        .activity-container {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px;
+            min-height: 80px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .activity-status {
+            font-size: 0.8rem;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .activity-status.idle {
+            color: var(--text-muted);
+            background: transparent;
+        }
+
+        .activity-status.running {
+            background: rgba(0, 212, 255, 0.1);
+            color: var(--accent-cyan);
+            border-left: 3px solid var(--accent-cyan);
+        }
+
+        .activity-status.pixel {
+            background: rgba(0, 212, 255, 0.15);
+            color: var(--accent-cyan);
+            border-left: 3px solid var(--accent-cyan);
+            font-weight: 600;
+        }
+
+        .activity-status.saving {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+            border-left: 3px solid var(--accent-green);
+        }
+
+        .activity-status.complete {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--accent-green);
+            border-left: 3px solid var(--accent-green);
+        }
+
+        .activity-status.error {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border-left: 3px solid #ef4444;
+        }
+
+        .activity-icon {
+            font-size: 1rem;
+        }
+
+        .last-saved {
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: rgba(16, 185, 129, 0.05);
+            border-radius: 6px;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            font-size: 0.75rem;
+        }
+
+        .last-saved.hidden {
+            display: none;
+        }
+
+        .saved-label {
+            color: var(--text-muted);
+            margin-right: 4px;
+        }
+
+        .saved-path {
+            color: var(--accent-green);
+            font-family: monospace;
+            font-weight: 600;
+        }
+
         /* Timeline Visualization Styles */
         .timeline-container {
             flex: 1;
@@ -477,6 +568,18 @@
                 </div>
                 <pre class="code-block" style="font-size: 0.7rem; max-height: 200px;"
                     id="yamlPreview">Select a protocol</pre>
+
+                <!-- Protocol Activity Tracker -->
+                <div class="panel" style="margin-top: 1rem;">
+                    <div class="panel-title">📢 Protocol Activity</div>
+                    <div id="protocolActivity" class="activity-container">
+                        <div class="activity-status idle">Waiting to start...</div>
+                    </div>
+                    <div id="lastSavedFile" class="last-saved hidden">
+                        <span class="saved-label">Last saved:</span>
+                        <span class="saved-path" id="savedFilePath">--</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Right: Main Area -->
@@ -764,6 +867,12 @@
         let steadyTraces = [];
         let startTime = 0;
 
+        // Activity tracking state
+        let currentPixel = null;
+        let currentLedState = 'OFF';
+        let lastSavedFile = null;
+        let activityLog = [];
+
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             initCharts();
@@ -997,8 +1106,64 @@
         }
 
         // --- Run Logic ---
+        // Activity tracking helper functions
+        function updateActivity(statusType, message, details = '') {
+            const container = document.getElementById('protocolActivity');
+            const iconMap = {
+                'idle': '⏳',
+                'running': '▶️',
+                'pixel': '📍',
+                'saving': '💾',
+                'complete': '✅',
+                'error': '❌'
+            };
+            
+            const icon = iconMap[statusType] || '○';
+            const html = `
+                <div class="activity-status ${statusType}">
+                    <span class="activity-icon">${icon}</span>
+                    <div>
+                        <div>${message}</div>
+                        ${details ? `<div style="font-size: 0.7rem; opacity: 0.8; margin-top: 2px;">${details}</div>` : ''}
+                    </div>
+                </div>
+            `;
+            
+            // Add new status at the top
+            container.insertAdjacentHTML('afterbegin', html);
+            
+            // Keep only last 5 entries
+            while (container.children.length > 5) {
+                container.removeChild(container.lastChild);
+            }
+            
+            // Log to console
+            console.log(`[Activity] ${statusType}: ${message} ${details}`);
+        }
+
+        function updateSavedFile(filepath) {
+            const container = document.getElementById('lastSavedFile');
+            const pathEl = document.getElementById('savedFilePath');
+            pathEl.textContent = filepath;
+            container.classList.remove('hidden');
+        }
+
+        function resetActivity() {
+            currentPixel = null;
+            currentLedState = 'OFF';
+            lastSavedFile = null;
+            activityLog = [];
+            document.getElementById('protocolActivity').innerHTML = '<div class="activity-status idle">Waiting to start...</div>';
+            document.getElementById('lastSavedFile').classList.add('hidden');
+            document.getElementById('savedFilePath').textContent = '--';
+        }
+
         async function runProtocol() {
             if (!selectedYaml) return alert("Select a protocol first!");
+            
+            // Reset activity tracking
+            resetActivity();
+            updateActivity('running', 'Starting protocol...', selectedProtocol.id);
 
             const yaml = Utils.deepClone(selectedYaml);
             const user = UI2.getCurrentUser();
@@ -1142,7 +1307,10 @@
             }
 
             // Start API
+            console.log('[API] POST /protocol/run-inline', yaml);
             const res = await UI2.runInlineProtocol(yaml);
+            console.log('[API Response] run-inline:', res);
+            
             if (res.success) {
                 isRunning = true;
                 startTime = Date.now();
@@ -1155,6 +1323,7 @@
                 document.getElementById('btnRun').disabled = true;
                 document.getElementById('btnStop').disabled = false;
 
+                updateActivity('running', 'Protocol Started', selectedProtocol.id);
                 Utils.showToast("Protocol Started!", 'success');
                 startPolling();
             } else {
@@ -1163,7 +1332,9 @@
         }
 
         async function abortProtocol() {
-            await UI2.abortProtocol();
+            console.log('[API] POST /protocol/abort');
+            const res = await UI2.abortProtocol();
+            console.log('[API Response] abort:', res);
             isRunning = false;
             document.getElementById('btnStop').disabled = true;
             document.getElementById('btnRun').disabled = false;
@@ -1179,7 +1350,10 @@
             if (!isRunning) return;
 
             // 1. Status
+            console.log('[API] GET /protocol/status');
             const status = await UI2.getProtocolStatus();
+            console.log('[API Response] status:', status);
+            
             document.getElementById('valState').textContent = status.state;
             document.getElementById('valDuration').textContent = status.run_duration_seconds.toFixed(1) + 's';
 
@@ -1188,9 +1362,24 @@
                 const percent = Math.round((status.steps_completed / status.total_steps) * 100);
                 document.getElementById('valProgress').textContent = percent + '%';
                 document.getElementById('progressBar').style.width = percent + '%';
+                
+                // Show running status with step info
+                if (status.steps_completed > 0 && status.steps_completed % 5 === 0) {
+                    updateActivity('running', `Running... Step ${status.steps_completed}/${status.total_steps}`, `${percent}% complete`);
+                }
             } else {
                 document.getElementById('valProgress').textContent = '0%';
                 document.getElementById('progressBar').style.width = '0%';
+            }
+
+            // Track current step info if available
+            if (status.current_step) {
+                console.log('[Activity] Current step:', status.current_step);
+            }
+            
+            // Track current action from status
+            if (status.current_action) {
+                console.log('[Activity] Current action:', status.current_action);
             }
 
             if (status.state === 'COMPLETE' || status.state === 'ERROR' || status.state === 'IDLE') {
@@ -1198,23 +1387,54 @@
                 document.getElementById('btnRun').disabled = false;
                 document.getElementById('btnStop').disabled = true;
                 clearInterval(pollTimer);
-                if (status.state === 'ERROR') alert("Protocol Error");
-                else Utils.showToast("Protocol Finished", 'success');
+                
+                if (status.state === 'ERROR') {
+                    updateActivity('error', 'Protocol Error', status.message || 'Unknown error');
+                    alert("Protocol Error");
+                } else {
+                    updateActivity('complete', 'Protocol Complete', `${traces.length} measurements saved`);
+                    Utils.showToast("Protocol Finished", 'success');
+                }
             }
 
             // 2. History
+            console.log('[API] GET /protocol/history');
             const history = await UI2.getProtocolHistory();
+            console.log('[API Response] history events:', history?.length || 0);
+            
             if (history && history.length > historyCursor) {
                 const newEvents = history.slice(historyCursor);
                 historyCursor = history.length;
 
                 newEvents.forEach(e => {
+                    console.log('[History Event]', e);
                     const varName = (e.variable || "").toLowerCase();
                     const isIV = varName.includes('iv');
                     const isSteady = varName.includes('steady');
+                    
+                    // Get context info
+                    const ctx = e.context || {};
+                    const pixel = ctx.pixel || ctx.pixel_id;
+                    const action = e.action || '';
 
+                    // Track pixel switching from context
+                    if (pixel && currentPixel !== pixel) {
+                        currentPixel = pixel;
+                        const cond = currentLedState === 'ON' ? 'Light' : 'Dark';
+                        updateActivity('pixel', `Testing Pixel ${pixel}`, `Condition: ${cond}`);
+                    }
+                    
+                    // Track LED state from context
+                    if (ctx.led_state !== undefined) {
+                        const newState = ctx.led_state === true || ctx.led_state === 1 || ctx.led_state === 'ON' ? 'ON' : 'OFF';
+                        if (currentLedState !== newState) {
+                            currentLedState = newState;
+                            console.log(`[Activity] LED state changed to: ${newState}`);
+                        }
+                    }
+
+                    // Track measurement completion
                     if ((isIV || isSteady) && e.value && e.value.results) {
-                        const pixel = e.context?.pixel || e.context?.pixel_id;
                         const results = e.value.results;
                         const targetList = isSteady ? steadyTraces : traces;
 
@@ -1225,6 +1445,39 @@
                             });
                         } else {
                             targetList.push({ pixel, channel: e.value.channel || 1, data: results, name: e.variable });
+                        }
+                        
+                        // Log measurement
+                        console.log(`[Activity] Measurement complete: ${e.variable} for pixel ${pixel}`);
+                    }
+                    
+                    // Track file saves from action or context
+                    if (action === 'data/save' || e.variable?.includes('save') || (e.value && e.value.saved)) {
+                        const filename = e.params?.filename || e.value?.filename || ctx.filename || 'unknown';
+                        const folder = e.params?.folder || ctx.folder || './data';
+                        const filepath = `${folder}/${filename}`;
+                        lastSavedFile = filepath;
+                        updateSavedFile(filepath);
+                        updateActivity('saving', 'Data Saved', filepath);
+                        console.log(`[Activity] File saved: ${filepath}`);
+                    }
+                    
+                    // Track relay/pixel actions directly
+                    if (action === 'relays/pixel' && e.params?.pixel_id) {
+                        const pixelId = e.params.pixel_id;
+                        if (currentPixel !== pixelId) {
+                            currentPixel = pixelId;
+                            const cond = currentLedState === 'ON' ? 'Light' : 'Dark';
+                            updateActivity('pixel', `Testing Pixel ${pixelId}`, `Condition: ${cond}`);
+                        }
+                    }
+                    
+                    // Track LED actions
+                    if (action === 'relays/led') {
+                        const newState = e.params?.channel_id === 0 ? 'OFF' : 'ON';
+                        if (currentLedState !== newState) {
+                            currentLedState = newState;
+                            console.log(`[Activity] LED state changed to: ${newState}`);
                         }
                     }
                 });
