@@ -278,19 +278,169 @@
             color: white;
         }
 
-        .mermaid-container {
+        /* Timeline Visualization Styles */
+        .timeline-container {
             flex: 1;
             overflow: auto;
-            background: #fdfdfd;
+            background: var(--bg-primary);
             border-radius: 8px;
             padding: 20px;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
+            gap: 15px;
         }
 
-        /* Adjust mermaid text color to be visible on white bg */
-        .mermaid {
-            color: #333;
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .timeline-mode-toggle {
+            display: flex;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            padding: 3px;
+            gap: 3px;
+        }
+
+        .timeline-mode-btn {
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            padding: 6px 16px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .timeline-mode-btn.active {
+            background: var(--accent-cyan);
+            color: #000;
+        }
+
+        .timeline-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .timeline-stat-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .timeline-stat-value {
+            color: var(--accent-cyan);
+            font-weight: 700;
+        }
+
+        .timeline-chart-wrapper {
+            flex: 1;
+            min-height: 400px;
+            position: relative;
+        }
+
+        .timeline-legend {
+            display: flex;
+            gap: 20px;
+            padding: 10px;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            flex-wrap: wrap;
+        }
+
+        .timeline-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .timeline-legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+        }
+
+        .timeline-details {
+            max-height: 200px;
+            overflow-y: auto;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+        .timeline-details-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            margin-bottom: 8px;
+        }
+
+        .timeline-stage {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 10px;
+            margin-bottom: 4px;
+            background: var(--bg-primary);
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+
+        .timeline-stage-time {
+            color: var(--accent-yellow);
+            font-weight: 600;
+            min-width: 60px;
+        }
+
+        .timeline-stage-duration {
+            color: var(--text-muted);
+            min-width: 50px;
+        }
+
+        .timeline-stage-action {
+            color: var(--text-primary);
+            flex: 1;
+        }
+
+        .timeline-stage-s1 {
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-weight: 600;
+            font-size: 0.7rem;
+        }
+
+        .timeline-stage-s1-active {
+            background: rgba(0, 212, 255, 0.2);
+            color: var(--accent-cyan);
+        }
+
+        .timeline-stage-s2 {
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-weight: 600;
+            font-size: 0.7rem;
+        }
+
+        .timeline-stage-s2-off {
+            background: rgba(100, 100, 100, 0.3);
+            color: #888;
+        }
+
+        .timeline-stage-s2-on {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
         }
     </style>
 </head>
@@ -528,20 +678,67 @@
     <div id="visualizeModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <div class="flex-between" style="gap: 20px;">
-                    <span class="modal-title" id="vizModalTitle">Protocol Scheme</span>
-                    <label class="checkbox-label" style="font-size: 0.8rem; margin: 0;">
-                        <input type="checkbox" id="vizShortVersion" onchange="visualizeProtocol()"> Short Version (Skip
-                        Setup/Wait)
-                    </label>
+                <div class="flex-between" style="gap: 20px; flex: 1;">
+                    <span class="modal-title" id="vizModalTitle">Protocol Timeline</span>
                 </div>
                 <span class="close" onclick="closeVisualizeModal()">&times;</span>
             </div>
-            <div class="mermaid-container">
-                <div class="mermaid" id="mermaidOutput">
-                    graph TD
-                    Start((Start)) --> End((End))
+            
+            <!-- Timeline Header with Controls -->
+            <div class="timeline-header">
+                <div class="timeline-mode-toggle">
+                    <button class="timeline-mode-btn" id="timelineModeShort" onclick="setTimelineMode('short')">Short View</button>
+                    <button class="timeline-mode-btn active" id="timelineModeLong" onclick="setTimelineMode('long')">Detailed View</button>
                 </div>
+                <div class="timeline-stats">
+                    <div class="timeline-stat-item">
+                        <span>Total Duration:</span>
+                        <span class="timeline-stat-value" id="timelineTotalDuration">--</span>
+                    </div>
+                    <div class="timeline-stat-item">
+                        <span>Switches:</span>
+                        <span class="timeline-stat-value" id="timelineSwitchCount">--</span>
+                    </div>
+                    <div class="timeline-stat-item">
+                        <span>Measurements:</span>
+                        <span class="timeline-stat-value" id="timelineMeasCount">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="timeline-legend">
+                <div class="timeline-legend-item">
+                    <div class="timeline-legend-color" style="background: rgba(0, 212, 255, 0.6);"></div>
+                    <span>S1 (Pixel) Active</span>
+                </div>
+                <div class="timeline-legend-item">
+                    <div class="timeline-legend-color" style="background: rgba(255, 193, 7, 0.6);"></div>
+                    <span>S2 (LED) ON</span>
+                </div>
+                <div class="timeline-legend-item">
+                    <div class="timeline-legend-color" style="background: rgba(100, 100, 100, 0.3);"></div>
+                    <span>S2 (LED) OFF</span>
+                </div>
+                <div class="timeline-legend-item">
+                    <div class="timeline-legend-color" style="background: rgba(16, 185, 129, 0.6);"></div>
+                    <span>Measurement</span>
+                </div>
+                <div class="timeline-legend-item">
+                    <div class="timeline-legend-color" style="background: rgba(239, 68, 68, 0.6);"></div>
+                    <span>Wait/Delay</span>
+                </div>
+            </div>
+
+            <!-- Timeline Chart -->
+            <div class="timeline-chart-wrapper">
+                <canvas id="timelineChart"></canvas>
+            </div>
+
+            <!-- Stage Details List -->
+            <div class="timeline-details" id="timelineDetails">
+                <div class="timeline-details-title">Protocol Stages</div>
+                <div id="timelineStagesList"></div>
             </div>
         </div>
     </div>
@@ -559,6 +756,7 @@
 
         let ivChart = null;
         let steadyChart = null;
+        let timelineChart = null;
         let isRunning = false;
         let pollTimer = null;
         let historyCursor = 0;
@@ -1130,139 +1328,536 @@
         }
 
         // --- Visualization ---
+        let timelineMode = 'long'; // 'short' | 'long'
+
         function closeVisualizeModal() {
             document.getElementById('visualizeModal').style.display = 'none';
+        }
+
+        function setTimelineMode(mode) {
+            timelineMode = mode;
+            document.getElementById('timelineModeShort').classList.toggle('active', mode === 'short');
+            document.getElementById('timelineModeLong').classList.toggle('active', mode === 'long');
+            visualizeProtocol();
         }
 
         async function visualizeProtocol() {
             if (!selectedYaml) return;
 
             const modal = document.getElementById('visualizeModal');
-            const output = document.getElementById('mermaidOutput');
             const title = document.getElementById('vizModalTitle');
-            const isShort = document.getElementById('vizShortVersion').checked;
 
-            title.textContent = `Scheme: ${selectedProtocol.id}`;
+            title.textContent = `Timeline: ${selectedProtocol.id}`;
             modal.style.display = 'block';
 
             if (!selectedYaml.steps || selectedYaml.steps.length === 0) {
-                output.innerHTML = "No steps to visualize.";
+                document.getElementById('timelineStagesList').innerHTML = '<div class="text-muted">No steps to visualize.</div>';
                 return;
             }
 
-            // --- Mermaid Generation Logic ---
-            let mermaidCode = 'graph TD\n';
-            mermaidCode += '  Start((Start)) --> ';
+            // Parse protocol into timeline events
+            const timeline = parseProtocolToTimeline(selectedYaml.steps, timelineMode);
+            
+            // Update stats
+            document.getElementById('timelineTotalDuration').textContent = formatDuration(timeline.totalDuration);
+            document.getElementById('timelineSwitchCount').textContent = timeline.switchCount;
+            document.getElementById('timelineMeasCount').textContent = timeline.measCount;
 
-            // Recursive function to generate graph
-            // Returns: { code: string, firstId: string, lastId: string }
-            function processSteps(steps, prefix) {
-                let code = '';
-                let firstRenderedId = null;
-                let lastRenderedId = null;
+            // Render stage list
+            renderTimelineStages(timeline.stages);
 
-                // 1. Filter Steps
-                const filteredSteps = steps.filter((s, idx) => {
-                    if (!isShort) return true;
-                    // Short mode filters
-                    const action = s.action || "";
-                    if (action.includes('connect')) return false;
-                    if (action.includes('configure')) return false;
-                    if (action.includes('mode')) return false;
-                    if (action === 'wait') return false;
-                    return true;
+            // Render chart
+            renderTimelineChart(timeline);
+        }
+
+        function parseProtocolToTimeline(steps, mode) {
+            const stages = [];
+            let currentTime = 0;
+            let currentS1 = 'OFF';  // Current pixel
+            let currentS2 = 'OFF';  // LED state (OFF/ON)
+            let switchCount = 0;
+            let measCount = 0;
+
+            function addStage(stage) {
+                stages.push({
+                    ...stage,
+                    startTime: currentTime,
+                    endTime: currentTime + stage.duration,
+                    s1: currentS1,
+                    s2: currentS2
                 });
+                currentTime += stage.duration;
+            }
 
-                if (filteredSteps.length === 0) {
-                    return { code: '', firstId: null, lastId: null };
+            // Track NPLC per SMU channel (from smu/configure steps)
+            const channelNPLC = { 1: 1, 2: 1 };  // Default NPLC = 1
+
+            function processStep(step, loopContext = {}) {
+                const action = step.action || '';
+                const params = step.params || {};
+
+                // Handle different action types
+                if (action === 'control/loop') {
+                    const loopVar = params.variable;
+                    const sequence = params.sequence || (params.range ? generateRange(params.range) : []);
+                    const loopSteps = step.steps || [];
+                    const loopCount = params.count || sequence.length || 1;
+
+                    for (let i = 0; i < loopCount; i++) {
+                        const ctx = { ...loopContext, [loopVar]: sequence[i] || i };
+                        for (const subStep of loopSteps) {
+                            processStep(subStep, ctx);
+                        }
+                    }
+                    return;
                 }
 
-                // 2. Iterate
-                filteredSteps.forEach((step, idx) => {
-                    const id = `${prefix}_${idx}`;
+                // Check if this step should be included based on mode
+                const isShortFiltered = mode === 'short' && (
+                    action.includes('connect') ||
+                    action.includes('configure') ||
+                    action === 'smu/source-mode' ||
+                    action === 'smu/set' ||
+                    (action === 'smu/output' && !params.enabled) ||
+                    action === 'relays/all-off'
+                );
 
-                    // Track linking
-                    if (!firstRenderedId) firstRenderedId = id;
-                    if (lastRenderedId) {
-                        code += `  ${lastRenderedId} --> ${id}\n`;
+                // Track NPLC from configure steps
+                if (action === 'smu/configure') {
+                    const ch = params.channel || 1;
+                    if (params.nplc !== undefined) {
+                        channelNPLC[ch] = params.nplc;
                     }
-                    lastRenderedId = id;
-
-                    // Generate Label
-                    let label = step.action || 'Unknown';
-                    // Simplify label text
-                    if (step.action === 'control/loop') {
-                        const p = step.params;
-                        label = `LOOP: ${p.variable}`;
-                        if (p.sequence) label += ` [${p.sequence.slice(0, 3).join(',')}${p.sequence.length > 3 ? '...' : ''}]`;
-                        else if (p.range) label += ` ${p.range.start}-${p.range.stop}`;
-                        else if (p.count) label += ` ${p.count}x`;
-                    } else if (step.action === 'smu/sweep') {
-                        label = `SWEEP: ${step.params.start}→${step.params.stop}V`;
-                    } else if (step.action === 'relays/pixel') {
-                        label = `PIXEL ${step.params.pixel_id}`;
-                    } else if (step.action === 'relays/led') {
-                        label = `LED ${step.params.channel_id}`;
-                    } else if (step.action.startsWith('smu/')) {
-                        label = step.action.replace('smu/', '').toUpperCase();
-                        if (step.params && step.params.value !== undefined) label += `: ${step.params.value}`;
-                    } else if (step.action.startsWith('data/')) {
-                        label = step.action.replace('data/', '').toUpperCase();
+                    if (mode === 'long') {
+                        addStage({
+                            type: 'setup',
+                            label: `Configure Ch${ch} (NPLC=${channelNPLC[ch]})`,
+                            duration: 0.05,
+                            action: action,
+                            shortVisible: false
+                        });
                     }
+                    return;  // Don't process further for configure
+                }
 
-                    // Escape strings for Mermaid
-                    label = label.replace(/"/g, "'");
-
-                    // Node Shape & Inner Logic
-                    if (step.action === 'control/loop') {
-                        code += `  ${id}{"${label}"}\n`;
-
-                        // Recurse for loop body
-                        const subResult = processSteps(step.steps || [], id + 'sub');
-
-                        if (subResult.code && subResult.firstId) {
-                            code += subResult.code;
-                            // Loop Start -> Inner First
-                            code += `  ${id} -- next --> ${subResult.firstId}\n`;
-                            // Inner Last -> Loop Start (The actual loop back)
-                            code += `  ${subResult.lastId} -- loop --> ${id}\n`;
-                        } else {
-                            // Empty loop body
-                            code += `  ${id} -- (empty) --> ${id}\n`;
-                        }
-                    } else {
-                        // Standard Box
-                        code += `  ${id}["${label}"]\n`;
+                // Handle state changes
+                if (action === 'relays/pixel') {
+                    const pixelId = resolveValue(params.pixel_id, loopContext);
+                    if (currentS1 !== pixelId) {
+                        currentS1 = pixelId === 0 || pixelId === '0' ? 'OFF' : `P${pixelId}`;
+                        switchCount++;
                     }
-                });
-
-                return { code, firstId: firstRenderedId, lastId: lastRenderedId };
+                    if (mode === 'short') {
+                        addStage({
+                            type: 'switch_s1',
+                            label: `Switch to Pixel ${pixelId}`,
+                            duration: 0.1,
+                            action: action
+                        });
+                    }
+                } else if (action === 'relays/led') {
+                    const ledState = params.channel_id === 0 ? 'OFF' : 'ON';
+                    if (currentS2 !== ledState) {
+                        currentS2 = ledState;
+                        switchCount++;
+                    }
+                    if (mode === 'short') {
+                        addStage({
+                            type: 'switch_s2',
+                            label: `LED ${ledState}`,
+                            duration: 0.1,
+                            action: action
+                        });
+                    }
+                } else if (action === 'relays/all-off') {
+                    if (currentS1 !== 'OFF') {
+                        currentS1 = 'OFF';
+                        switchCount++;
+                    }
+                    if (currentS2 !== 'OFF') {
+                        currentS2 = 'OFF';
+                        switchCount++;
+                    }
+                } else if (action === 'wait') {
+                    const duration = params.seconds || params.duration || 0;
+                    if (!isShortFiltered || duration > 0.5) {
+                        addStage({
+                            type: 'wait',
+                            label: `Wait ${duration}s`,
+                            duration: duration,
+                            action: action,
+                            shortVisible: mode === 'long' || duration > 1
+                        });
+                    }
+                } else if (action === 'smu/sweep') {
+                    const points = params.points || 10;
+                    const delay = params.delay || 0.05;
+                    const channel = params.channel || 1;
+                    const nplc = channelNPLC[channel] || 1;
+                    
+                    // Realistic timing calculation:
+                    // duration = points * (delay + NPLC * 20ms + 0.5ms comms overhead)
+                    const nplcTime = nplc * 0.020;  // 20ms per NPLC
+                    const commsOverhead = 0.0005;   // 0.5ms per point
+                    const pointTime = delay + nplcTime + commsOverhead;
+                    const duration = points * pointTime;
+                    
+                    measCount++;
+                    addStage({
+                        type: 'measurement',
+                        label: `Sweep ${params.start}V→${params.stop}V (${points}pts, NPLC=${nplc})`,
+                        duration: duration,
+                        action: action,
+                        channel: channel,
+                        shortVisible: true
+                    });
+                } else if (action === 'smu/output' && params.enabled) {
+                    // Output ON - usually part of setup, brief
+                    if (mode === 'long') {
+                        addStage({
+                            type: 'setup',
+                            label: `Output ON (Ch${params.channel})`,
+                            duration: 0.05,
+                            action: action,
+                            shortVisible: false
+                        });
+                    }
+                } else {
+                    // Other setup actions
+                    if (mode === 'long' && !isShortFiltered) {
+                        addStage({
+                            type: 'setup',
+                            label: action,
+                            duration: 0.1,
+                            action: action,
+                            shortVisible: false
+                        });
+                    }
+                }
             }
 
-            const result = processSteps(selectedYaml.steps, 'S');
+            // Process all steps
+            for (const step of steps) {
+                processStep(step);
+            }
 
-            if (result.code) {
-                mermaidCode += `${result.firstId}\n`; // Link Start to first node
-                mermaidCode += result.code;
-                mermaidCode += `  ${result.lastId} --> End((End))\n`;
+            return {
+                stages: stages,
+                totalDuration: currentTime,
+                switchCount: switchCount,
+                measCount: measCount
+            };
+        }
+
+        function resolveValue(value, context) {
+            if (typeof value === 'string' && value.startsWith('$')) {
+                const varName = value.slice(1);
+                return context[varName] !== undefined ? context[varName] : value;
+            }
+            return value;
+        }
+
+        function generateRange(range) {
+            const result = [];
+            const start = range.start || 0;
+            const stop = range.stop || 0;
+            const step = range.step || 1;
+            for (let i = start; i <= stop; i += step) {
+                result.push(i);
+            }
+            return result;
+        }
+
+        function formatDuration(seconds) {
+            if (seconds < 60) {
+                return `${seconds.toFixed(1)}s`;
+            } else if (seconds < 3600) {
+                const m = Math.floor(seconds / 60);
+                const s = seconds % 60;
+                return `${m}m ${s.toFixed(0)}s`;
             } else {
-                mermaidCode += `End((End))\n`;
+                const h = Math.floor(seconds / 3600);
+                const m = Math.floor((seconds % 3600) / 60);
+                return `${h}h ${m}m`;
+            }
+        }
+
+        function renderTimelineStages(stages) {
+            const container = document.getElementById('timelineStagesList');
+            
+            if (stages.length === 0) {
+                container.innerHTML = '<div class="text-muted">No stages to display.</div>';
+                return;
             }
 
-            console.log("Mermaid Code:", mermaidCode);
+            const html = stages.map((stage, idx) => {
+                const s1Class = stage.s1 === 'OFF' ? '' : 'timeline-stage-s1-active';
+                const s2Class = stage.s2 === 'ON' ? 'timeline-stage-s2-on' : 'timeline-stage-s2-off';
+                
+                return `
+                    <div class="timeline-stage">
+                        <span class="timeline-stage-time">${stage.startTime.toFixed(1)}s</span>
+                        <span class="timeline-stage-duration">(${stage.duration.toFixed(2)}s)</span>
+                        <span class="timeline-stage-action">${stage.label}</span>
+                        <span class="timeline-stage-s1 ${s1Class}">S1: ${stage.s1}</span>
+                        <span class="timeline-stage-s2 ${s2Class}">S2: ${stage.s2}</span>
+                    </div>
+                `;
+            }).join('');
 
-            // Re-render mermaid
-            output.removeAttribute('data-processed');
-            output.innerHTML = mermaidCode;
+            container.innerHTML = html;
+        }
 
-            try {
-                await mermaid.run({
-                    nodes: [output]
+        function renderTimelineChart(timeline) {
+            const ctx = document.getElementById('timelineChart').getContext('2d');
+
+            // Collect all timeline items
+            const items = [];
+            
+            // Track continuous states
+            let lastS1 = 'OFF';
+            let lastS2 = 'OFF';
+            let s1Start = 0;
+            let s2Start = 0;
+
+            timeline.stages.forEach((stage, idx) => {
+                // S1 State tracking (continuous)
+                if (stage.s1 !== lastS1) {
+                    if (lastS1 !== 'OFF') {
+                        items.push({
+                            lane: 3,
+                            start: s1Start,
+                            end: stage.startTime,
+                            label: lastS1,
+                            type: 's1',
+                            color: 'rgba(0, 212, 255, 0.7)',
+                            borderColor: 'rgba(0, 212, 255, 1)'
+                        });
+                    }
+                    lastS1 = stage.s1;
+                    s1Start = stage.startTime;
+                }
+
+                // S2 State tracking (continuous)
+                if (stage.s2 !== lastS2) {
+                    if (lastS2 === 'ON') {
+                        items.push({
+                            lane: 2,
+                            start: s2Start,
+                            end: stage.startTime,
+                            label: 'LED ON',
+                            type: 's2',
+                            color: 'rgba(255, 193, 7, 0.7)',
+                            borderColor: 'rgba(255, 193, 7, 1)'
+                        });
+                    }
+                    lastS2 = stage.s2;
+                    s2Start = stage.startTime;
+                }
+
+                // Measurements
+                if (stage.type === 'measurement') {
+                    items.push({
+                        lane: 1,
+                        start: stage.startTime,
+                        end: stage.endTime,
+                        label: stage.label,
+                        type: 'measurement',
+                        color: 'rgba(16, 185, 129, 0.7)',
+                        borderColor: 'rgba(16, 185, 129, 1)'
+                    });
+                }
+
+                // Waits (only if significant)
+                if (stage.type === 'wait' && stage.duration > 0.05) {
+                    items.push({
+                        lane: 0,
+                        start: stage.startTime,
+                        end: stage.endTime,
+                        label: stage.label,
+                        type: 'wait',
+                        color: 'rgba(239, 68, 68, 0.4)',
+                        borderColor: 'rgba(239, 68, 68, 0.6)'
+                    });
+                }
+            });
+
+            // Close final state segments
+            if (lastS1 !== 'OFF' && timeline.stages.length > 0) {
+                const lastTime = timeline.stages[timeline.stages.length - 1].endTime;
+                items.push({
+                    lane: 3,
+                    start: s1Start,
+                    end: lastTime,
+                    label: lastS1,
+                    type: 's1',
+                    color: 'rgba(0, 212, 255, 0.7)',
+                    borderColor: 'rgba(0, 212, 255, 1)'
                 });
-            } catch (e) {
-                console.error("Mermaid Render Error:", e);
-                output.innerHTML = `<div class="text-error">Visualization Error: ${e.message}</div>`;
             }
+            if (lastS2 === 'ON' && timeline.stages.length > 0) {
+                const lastTime = timeline.stages[timeline.stages.length - 1].endTime;
+                items.push({
+                    lane: 2,
+                    start: s2Start,
+                    end: lastTime,
+                    label: 'LED ON',
+                    type: 's2',
+                    color: 'rgba(255, 193, 7, 0.7)',
+                    borderColor: 'rgba(255, 193, 7, 1)'
+                });
+            }
+
+            // Create scatter datasets - one point per item at center of time range
+            // We'll use a custom plugin to draw the actual bars
+            const scatterData = items.map(item => ({
+                x: (item.start + item.end) / 2,
+                y: item.lane,
+                xMin: item.start,
+                xMax: item.end,
+                label: item.label,
+                color: item.color,
+                borderColor: item.borderColor,
+                type: item.type,
+                duration: item.end - item.start
+            }));
+
+            // Define custom plugin to draw timeline bars
+            const timelinePlugin = {
+                id: 'timelineBars',
+                afterDatasetsDraw(chart) {
+                    const ctx = chart.ctx;
+                    const xScale = chart.scales.x;
+                    const yScale = chart.scales.y;
+                    const meta = chart.getDatasetMeta(0);
+
+                    ctx.save();
+                    
+                    scatterData.forEach(item => {
+                        const xStart = xScale.getPixelForValue(item.xMin);
+                        const xEnd = xScale.getPixelForValue(item.xMax);
+                        const y = yScale.getPixelForValue(item.y);
+                        
+                        // Bar height based on lane
+                        const barHeight = item.type === 'wait' ? 20 : 30;
+                        const yTop = y - barHeight / 2;
+                        const width = xEnd - xStart;
+
+                        // Draw bar
+                        ctx.fillStyle = item.color;
+                        ctx.strokeStyle = item.borderColor;
+                        ctx.lineWidth = 1;
+                        
+                        // Rounded rectangle
+                        const radius = 3;
+                        ctx.beginPath();
+                        ctx.roundRect(xStart, yTop, width, barHeight, radius);
+                        ctx.fill();
+                        ctx.stroke();
+
+                        // Draw label if bar is wide enough
+                        if (width > 40 && item.type !== 'wait') {
+                            ctx.fillStyle = '#fff';
+                            ctx.font = '10px sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            const label = item.label.length > 15 ? item.label.substring(0, 12) + '...' : item.label;
+                            ctx.fillText(label, (xStart + xEnd) / 2, y);
+                        }
+                    });
+                    
+                    ctx.restore();
+                }
+            };
+
+            if (timelineChart) {
+                timelineChart.destroy();
+            }
+
+            timelineChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Timeline',
+                        data: scatterData,
+                        pointRadius: 0,  // Hide actual points
+                        pointHoverRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    layout: {
+                        padding: { left: 10, right: 10, top: 10, bottom: 10 }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+                            titleColor: '#00d4ff',
+                            bodyColor: '#ccc',
+                            borderColor: '#333',
+                            borderWidth: 1,
+                            callbacks: {
+                                title: (items) => {
+                                    if (!items || items.length === 0) return '';
+                                    const raw = items[0].raw;
+                                    return `${raw.xMin.toFixed(2)}s - ${raw.xMax.toFixed(2)}s (Δ${raw.duration.toFixed(2)}s)`;
+                                },
+                                label: (item) => {
+                                    const raw = item.raw;
+                                    const laneNames = ['Wait/Delay', 'Measurement', 'S2 (LED)', 'S1 (Pixel)'];
+                                    return [
+                                        `Type: ${laneNames[raw.y]}`,
+                                        `Action: ${raw.label}`
+                                    ];
+                                }
+                            }
+                        },
+                        timelineBars: {}  // Enable custom plugin
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            title: {
+                                display: true,
+                                text: 'Time (seconds)',
+                                color: '#888',
+                                font: { size: 12 }
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: '#888',
+                                callback: (v) => v + 's'
+                            },
+                            min: 0,
+                            max: timeline.totalDuration * 1.02
+                        },
+                        y: {
+                            type: 'linear',
+                            min: -0.5,
+                            max: 3.5,
+                            ticks: {
+                                stepSize: 1,
+                                color: '#aaa',
+                                font: { size: 11, weight: 'bold' },
+                                callback: (v) => {
+                                    const labels = ['Wait/Delay', 'Measurement', 'S2 (LED)', 'S1 (Pixel)'];
+                                    return labels[v] || '';
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)'
+                            }
+                        }
+                    }
+                },
+                plugins: [timelinePlugin]
+            });
         }
     </script>
 </body>
