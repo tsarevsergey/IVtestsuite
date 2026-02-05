@@ -13,10 +13,12 @@
     <style>
         .runner-container {
             display: grid;
-            grid-template-columns: 350px 1fr;
-            gap: 1.5rem;
+            grid-template-columns: 280px 1fr;
+            gap: 1rem;
             max-width: 1600px;
             margin: 0 auto;
+            height: calc(100vh - 80px);
+            overflow: hidden;
         }
 
         .protocol-source-toggle {
@@ -46,7 +48,7 @@
         }
 
         .protocol-list-mini {
-            max-height: 400px;
+            max-height: 180px;
             overflow-y: auto;
             border: 1px solid var(--border-color);
             background: var(--bg-primary);
@@ -54,7 +56,7 @@
         }
 
         .proto-item {
-            padding: 10px 12px;
+            padding: 6px 10px;
             border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: all 0.2s;
@@ -85,53 +87,53 @@
             color: var(--text-muted);
         }
 
-        /* Metric Cards */
+        /* Metric Cards - Compact */
         .metrics-bar {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
-            margin-bottom: 1.5rem;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
         }
 
         .metric-card {
             background: var(--bg-panel);
             border: 1px solid var(--border-color);
-            border-left: 5px solid var(--accent-green);
-            padding: 1rem;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            border-left: 4px solid var(--accent-green);
+            padding: 0.4rem 0.6rem;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
 
         .metric-label {
-            font-size: 0.7rem;
+            font-size: 0.6rem;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
             color: var(--text-muted);
-            margin-bottom: 5px;
+            margin-bottom: 2px;
         }
 
         .metric-value {
-            font-size: 1.4rem;
+            font-size: 1rem;
             font-weight: 700;
             color: var(--text-primary);
         }
 
-        /* Overrides Accordion */
+        /* Overrides Accordion - Compact */
         .override-section {
             background: var(--bg-panel);
             border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 1.25rem;
-            margin-bottom: 1.5rem;
+            border-radius: 8px;
+            padding: 0.6rem 0.8rem;
+            margin-bottom: 0.5rem;
         }
 
         .section-header {
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             font-weight: 700;
-            margin-bottom: 1rem;
+            margin-bottom: 0;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.4rem;
             color: var(--accent-cyan);
             cursor: pointer;
             user-select: none;
@@ -149,19 +151,45 @@
             display: none;
         }
 
+        /* Compact form elements */
+        .form-group {
+            margin-bottom: 0.3rem;
+        }
+
+        .form-group label {
+            font-size: 0.7rem;
+            margin-bottom: 0.1rem;
+        }
+
+        .form-group input,
+        .form-group select {
+            padding: 0.25rem 0.4rem;
+            font-size: 0.75rem;
+            height: 28px;
+        }
+
+        .group-title {
+            font-size: 0.75rem;
+            margin: 0.4rem 0 0.2rem 0;
+        }
+
+        .divider {
+            margin: 0.3rem 0;
+        }
+
         .override-section.collapsed .section-header {
             margin-bottom: 0;
         }
 
-        /* Execution Styles */
+        /* Execution Styles - Compact */
         .btn-run {
             background: linear-gradient(135deg, #10b981, #059669);
             color: white;
-            font-weight: 800;
+            font-weight: 700;
             border: none;
-            height: 50px;
-            font-size: 1.1rem;
-            letter-spacing: 1px;
+            height: 36px;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
         }
 
         .btn-run:hover:not(:disabled) {
@@ -172,10 +200,10 @@
         .btn-stop {
             background: linear-gradient(135deg, #ef4444, #b91c1c);
             color: white;
-            font-weight: 800;
+            font-weight: 700;
             border: none;
-            height: 50px;
-            font-size: 1.1rem;
+            height: 36px;
+            font-size: 0.9rem;
         }
 
         .btn-stop:hover:not(:disabled) {
@@ -185,37 +213,41 @@
 
         .chart-grid {
             display: grid;
-            grid-template-columns: 1fr;
-            gap: 1.5rem;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            height: calc(100vh - 320px);
+            min-height: 250px;
         }
 
         .chart-box {
             background: var(--bg-panel);
-            padding: 1rem;
-            border-radius: 12px;
+            padding: 0.4rem 0.6rem;
+            border-radius: 8px;
             border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
         }
 
         .chart-controls {
             display: flex;
-            gap: 1rem;
-            margin-bottom: 0.5rem;
+            gap: 0.5rem;
+            margin-bottom: 0.2rem;
             align-items: center;
-            font-size: 0.8rem;
+            font-size: 0.7rem;
         }
 
         .radio-group {
             display: flex;
             background: var(--bg-secondary);
-            border-radius: 6px;
-            padding: 2px;
+            border-radius: 4px;
+            padding: 1px;
         }
 
         .radio-btn {
-            padding: 4px 10px;
-            font-size: 0.75rem;
+            padding: 2px 6px;
+            font-size: 0.65rem;
             cursor: pointer;
-            border-radius: 4px;
+            border-radius: 3px;
         }
 
         .radio-btn.active {
@@ -224,7 +256,7 @@
             font-weight: bold;
         }
 
-        /* Modal Styles */
+        /* Modal Styles - Compact */
         .modal {
             display: none;
             position: fixed;
@@ -239,13 +271,13 @@
 
         .modal-content {
             background-color: var(--bg-panel);
-            margin: 5vh auto;
-            padding: 20px;
+            margin: 3vh auto;
+            padding: 12px;
             border: 1px solid var(--border-color);
-            border-radius: 12px;
-            width: 90%;
+            border-radius: 8px;
+            width: 95%;
             max-width: 1200px;
-            height: 85vh;
+            height: 90vh;
             display: flex;
             flex-direction: column;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
@@ -255,20 +287,20 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
             border-bottom: 1px solid var(--border-color);
-            padding-bottom: 10px;
+            padding-bottom: 6px;
         }
 
         .modal-title {
-            font-size: 1.2rem;
+            font-size: 1rem;
             font-weight: 700;
             color: var(--accent-cyan);
         }
 
         .close {
             color: var(--text-secondary);
-            font-size: 28px;
+            font-size: 22px;
             font-weight: bold;
             cursor: pointer;
             transition: color 0.2s;
@@ -278,30 +310,30 @@
             color: white;
         }
 
-        /* Protocol Activity Tracker Styles */
+        /* Protocol Activity Tracker Styles - Compact */
         .activity-container {
             background: var(--bg-primary);
             border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 10px;
-            min-height: 80px;
-            max-height: 150px;
+            border-radius: 6px;
+            padding: 4px;
+            min-height: 40px;
+            max-height: 80px;
             overflow-y: auto;
         }
 
         .activity-status {
-            font-size: 0.8rem;
-            padding: 8px 12px;
-            border-radius: 6px;
-            margin-bottom: 6px;
+            font-size: 0.7rem;
+            padding: 3px 6px;
+            border-radius: 4px;
+            margin-bottom: 3px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 4px;
             animation: fadeIn 0.3s ease;
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-5px); }
+            from { opacity: 0; transform: translateY(-3px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
@@ -313,45 +345,45 @@
         .activity-status.running {
             background: rgba(0, 212, 255, 0.1);
             color: var(--accent-cyan);
-            border-left: 3px solid var(--accent-cyan);
+            border-left: 2px solid var(--accent-cyan);
         }
 
         .activity-status.pixel {
             background: rgba(0, 212, 255, 0.15);
             color: var(--accent-cyan);
-            border-left: 3px solid var(--accent-cyan);
+            border-left: 2px solid var(--accent-cyan);
             font-weight: 600;
         }
 
         .activity-status.saving {
             background: rgba(16, 185, 129, 0.15);
             color: var(--accent-green);
-            border-left: 3px solid var(--accent-green);
+            border-left: 2px solid var(--accent-green);
         }
 
         .activity-status.complete {
             background: rgba(16, 185, 129, 0.2);
             color: var(--accent-green);
-            border-left: 3px solid var(--accent-green);
+            border-left: 2px solid var(--accent-green);
         }
 
         .activity-status.error {
             background: rgba(239, 68, 68, 0.15);
             color: #ef4444;
-            border-left: 3px solid #ef4444;
+            border-left: 2px solid #ef4444;
         }
 
         .activity-icon {
-            font-size: 1rem;
+            font-size: 0.8rem;
         }
 
         .last-saved {
-            margin-top: 8px;
-            padding: 8px 12px;
+            margin-top: 4px;
+            padding: 3px 6px;
             background: rgba(16, 185, 129, 0.05);
-            border-radius: 6px;
+            border-radius: 4px;
             border: 1px solid rgba(16, 185, 129, 0.2);
-            font-size: 0.75rem;
+            font-size: 0.65rem;
         }
 
         .last-saved.hidden {
@@ -360,7 +392,7 @@
 
         .saved-label {
             color: var(--text-muted);
-            margin-right: 4px;
+            margin-right: 3px;
         }
 
         .saved-path {
@@ -369,45 +401,45 @@
             font-weight: 600;
         }
 
-        /* Timeline Visualization Styles */
+        /* Timeline Visualization Styles - Compact */
         .timeline-container {
             flex: 1;
             overflow: auto;
             background: var(--bg-primary);
-            border-radius: 8px;
-            padding: 20px;
+            border-radius: 6px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 8px;
         }
 
         .timeline-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding-bottom: 10px;
+            padding-bottom: 6px;
             border-bottom: 1px solid var(--border-color);
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 6px;
         }
 
         .timeline-mode-toggle {
             display: flex;
             background: var(--bg-secondary);
-            border-radius: 6px;
-            padding: 3px;
-            gap: 3px;
+            border-radius: 4px;
+            padding: 2px;
+            gap: 2px;
         }
 
         .timeline-mode-btn {
             border: none;
             background: transparent;
             color: var(--text-secondary);
-            padding: 6px 16px;
-            font-size: 0.8rem;
+            padding: 4px 10px;
+            font-size: 0.7rem;
             font-weight: 600;
             cursor: pointer;
-            border-radius: 4px;
+            border-radius: 3px;
             transition: all 0.2s;
         }
 
@@ -418,15 +450,15 @@
 
         .timeline-stats {
             display: flex;
-            gap: 20px;
-            font-size: 0.8rem;
+            gap: 12px;
+            font-size: 0.7rem;
             color: var(--text-muted);
         }
 
         .timeline-stat-item {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
         }
 
         .timeline-stat-value {
@@ -436,68 +468,68 @@
 
         .timeline-chart-wrapper {
             flex: 1;
-            min-height: 400px;
+            min-height: 250px;
             position: relative;
         }
 
         .timeline-legend {
             display: flex;
-            gap: 20px;
-            padding: 10px;
+            gap: 12px;
+            padding: 6px;
             background: var(--bg-secondary);
-            border-radius: 6px;
+            border-radius: 4px;
             flex-wrap: wrap;
         }
 
         .timeline-legend-item {
             display: flex;
             align-items: center;
-            gap: 8px;
-            font-size: 0.8rem;
+            gap: 4px;
+            font-size: 0.7rem;
             color: var(--text-secondary);
         }
 
         .timeline-legend-color {
-            width: 16px;
-            height: 16px;
-            border-radius: 3px;
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
         }
 
         .timeline-details {
-            max-height: 200px;
+            max-height: 120px;
             overflow-y: auto;
             background: var(--bg-secondary);
-            border-radius: 6px;
-            padding: 10px;
+            border-radius: 4px;
+            padding: 6px;
         }
 
         .timeline-details-title {
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             font-weight: 700;
             color: var(--accent-cyan);
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
 
         .timeline-stage {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 6px 10px;
-            margin-bottom: 4px;
+            gap: 6px;
+            padding: 3px 6px;
+            margin-bottom: 2px;
             background: var(--bg-primary);
-            border-radius: 4px;
-            font-size: 0.75rem;
+            border-radius: 3px;
+            font-size: 0.65rem;
         }
 
         .timeline-stage-time {
             color: var(--accent-yellow);
             font-weight: 600;
-            min-width: 60px;
+            min-width: 45px;
         }
 
         .timeline-stage-duration {
             color: var(--text-muted);
-            min-width: 50px;
+            min-width: 40px;
         }
 
         .timeline-stage-action {
@@ -506,10 +538,10 @@
         }
 
         .timeline-stage-s1 {
-            padding: 2px 8px;
-            border-radius: 3px;
+            padding: 1px 5px;
+            border-radius: 2px;
             font-weight: 600;
-            font-size: 0.7rem;
+            font-size: 0.6rem;
         }
 
         .timeline-stage-s1-active {
@@ -518,10 +550,10 @@
         }
 
         .timeline-stage-s2 {
-            padding: 2px 8px;
-            border-radius: 3px;
+            padding: 1px 5px;
+            border-radius: 2px;
             font-weight: 600;
-            font-size: 0.7rem;
+            font-size: 0.6rem;
         }
 
         .timeline-stage-s2-off {
@@ -536,47 +568,44 @@
     </style>
 </head>
 
-<body>
-    <div class="container">
-        <div class="page-header">
-            <h1 class="page-title">📈 Protocol Runner</h1>
+<body style="overflow: hidden;">
+    <div class="container" style="padding: 0.3rem 0.5rem;">
+        <div class="page-header" style="margin-bottom: 0.3rem; padding-bottom: 0.3rem;">
+            <h1 class="page-title" style="font-size: 1.1rem;">📈 Protocol Runner</h1>
         </div>
 
         <div class="runner-container">
             <!-- Left: Sidebar -->
             <div class="sidebar">
-                <div class="panel">
-                    <div class="panel-title">Protocol Selection</div>
-                    <div class="protocol-source-toggle">
-                        <button class="source-btn active" onclick="setSource('user')" id="srcUser">User
-                            Protocols</button>
-                        <button class="source-btn" onclick="setSource('all')" id="srcAll">All Protocols</button>
+                <div class="panel" style="padding: 0.5rem;">
+                    <div class="panel-title" style="font-size: 0.8rem; margin-bottom: 0.3rem;">Protocol Selection</div>
+                    <div class="protocol-source-toggle" style="margin-bottom: 0.3rem;">
+                        <button class="source-btn active" onclick="setSource('user')" id="srcUser" style="padding: 4px; font-size: 0.7rem;">User</button>
+                        <button class="source-btn" onclick="setSource('all')" id="srcAll" style="padding: 4px; font-size: 0.7rem;">All</button>
                     </div>
 
-                    <button class="btn btn-outline btn-sm btn-full mb-2" onclick="loadProtocolsList()">🔄 Refresh
-                        List</button>
+                    <button class="btn btn-outline btn-xs btn-full mb-1" style="padding: 2px 6px; font-size: 0.7rem;" onclick="loadProtocolsList()">🔄 Refresh</button>
 
                     <div class="protocol-list-mini" id="protocolList">
-                        <div class="text-center p-3 text-muted">Loading protocols...</div>
+                        <div class="text-center p-2 text-muted" style="font-size: 0.7rem;">Loading...</div>
                     </div>
                 </div>
 
-                <div class="panel-title flex-between">
+                <div class="panel-title flex-between" style="font-size: 0.75rem; margin: 0.3rem 0;">
                     <span>Current Protocol</span>
-                    <button class="btn btn-outline btn-xs" id="btnVisualize" onclick="visualizeProtocol()" disabled>🔍
-                        Visualize</button>
+                    <button class="btn btn-outline btn-xs" style="padding: 2px 6px; font-size: 0.65rem;" id="btnVisualize" onclick="visualizeProtocol()" disabled>🔍 Viz</button>
                 </div>
-                <pre class="code-block" style="font-size: 0.7rem; max-height: 200px;"
+                <pre class="code-block" style="font-size: 0.6rem; max-height: 80px; margin: 0;"
                     id="yamlPreview">Select a protocol</pre>
 
                 <!-- Protocol Activity Tracker -->
-                <div class="panel" style="margin-top: 1rem;">
-                    <div class="panel-title">📢 Protocol Activity</div>
-                    <div id="protocolActivity" class="activity-container">
-                        <div class="activity-status idle">Waiting to start...</div>
+                <div class="panel" style="margin-top: 0.3rem; padding: 0.4rem;">
+                    <div class="panel-title" style="font-size: 0.75rem; margin-bottom: 0.2rem;">📢 Activity</div>
+                    <div id="protocolActivity" class="activity-container" style="min-height: 50px; max-height: 80px; padding: 4px;">
+                        <div class="activity-status idle" style="padding: 4px 8px; font-size: 0.7rem;">Waiting...</div>
                     </div>
-                    <div id="lastSavedFile" class="last-saved hidden">
-                        <span class="saved-label">Last saved:</span>
+                    <div id="lastSavedFile" class="last-saved hidden" style="margin-top: 4px; padding: 4px 8px; font-size: 0.65rem;">
+                        <span class="saved-label">Saved:</span>
                         <span class="saved-path" id="savedFilePath">--</span>
                     </div>
                 </div>
@@ -609,9 +638,9 @@
                 </div>
 
                 <!-- 2. Parameter Overrides -->
-                <div class="override-section" id="setupSection">
+                <div class="override-section collapsed" id="setupSection">
                     <div class="section-header" onclick="toggleSetup()">
-                        <span id="setupToggleIcon">▼</span> 🛠️ Setup & Parameters (Overrides)
+                        <span id="setupToggleIcon">▶</span> 🛠️ Setup & Parameters (click to expand)
                     </div>
 
                     <div id="setupContent">
@@ -744,31 +773,27 @@
                     <!-- IV Plot -->
                     <div class="chart-box">
                         <div class="flex-between">
-                            <div class="panel-title">📊 IV Curves</div>
+                            <div class="panel-title" style="font-size: 0.75rem;">📊 IV Curves</div>
                             <div class="chart-controls">
-                                <div>Mode:</div>
                                 <div class="radio-group">
-                                    <div class="radio-btn active" id="modeAccum" onclick="setPlotMode('accumulate')">
-                                        Accumulate</div>
+                                    <div class="radio-btn active" id="modeAccum" onclick="setPlotMode('accumulate')">Accum</div>
                                     <div class="radio-btn" id="modeLatest" onclick="setPlotMode('latest')">Latest</div>
                                 </div>
-                                <div>Scale:</div>
                                 <div class="radio-group">
-                                    <div class="radio-btn active" id="scaleLinear" onclick="setScaleMode('linear')">
-                                        Linear</div>
+                                    <div class="radio-btn active" id="scaleLinear" onclick="setScaleMode('linear')">Lin</div>
                                     <div class="radio-btn" id="scaleLog" onclick="setScaleMode('log')">Log</div>
                                 </div>
                             </div>
                         </div>
-                        <div style="height: 500px;">
+                        <div style="flex: 1; min-height: 0;">
                             <canvas id="ivChart"></canvas>
                         </div>
                     </div>
 
                     <!-- Steady State Plot -->
                     <div class="chart-box" id="steadyBox">
-                        <div class="panel-title">⏱️ Steady State (Current vs Time)</div>
-                        <div style="height: 350px;">
+                        <div class="panel-title" style="font-size: 0.75rem;">⏱️ Steady State</div>
+                        <div style="flex: 1; min-height: 0;">
                             <canvas id="steadyChart"></canvas>
                         </div>
                     </div>
@@ -1498,10 +1523,10 @@
                     maintainAspectRatio: false,
                     animation: false,
                     scales: {
-                        x: { title: { display: true, text: 'Voltage (V)', color: '#888' }, grid: { color: '#333' } },
-                        y: { title: { display: true, text: 'Current (A)', color: '#888' }, grid: { color: '#333' } }
+                        x: { title: { display: true, text: 'V (V)', color: '#888', font: {size: 9} }, grid: { color: '#333' }, ticks: { font: {size: 8} } },
+                        y: { title: { display: true, text: 'I (A)', color: '#888', font: {size: 9} }, grid: { color: '#333' }, ticks: { font: {size: 8} } }
                     },
-                    plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } }
+                    plugins: { legend: { position: 'right', labels: { boxWidth: 8, font: { size: 8 }, padding: 4 } } }
                 }
             });
 
@@ -1514,9 +1539,10 @@
                     maintainAspectRatio: false,
                     animation: false,
                     scales: {
-                        x: { type: 'linear', title: { display: true, text: 'Points', color: '#888' }, grid: { color: '#333' } },
-                        y: { title: { display: true, text: 'Current (A)', color: '#888' }, grid: { color: '#333' } }
-                    }
+                        x: { type: 'linear', title: { display: true, text: 'Points', color: '#888', font: {size: 9} }, grid: { color: '#333' }, ticks: { font: {size: 8} } },
+                        y: { title: { display: true, text: 'I (A)', color: '#888', font: {size: 9} }, grid: { color: '#333' }, ticks: { font: {size: 8} } }
+                    },
+                    plugins: { legend: { position: 'right', labels: { boxWidth: 8, font: { size: 8 }, padding: 4 } } }
                 }
             });
         }
@@ -1534,7 +1560,7 @@
             document.getElementById('scaleLog').classList.toggle('active', mode === 'log');
 
             ivChart.options.scales.y.type = mode === 'log' ? 'logarithmic' : 'linear';
-            ivChart.options.scales.y.title.text = mode === 'log' ? '|Current| (A)' : 'Current (A)';
+            ivChart.options.scales.y.title.text = mode === 'log' ? '|I| (A)' : 'I (A)';
             steadyChart.options.scales.y.type = mode === 'log' ? 'logarithmic' : 'linear';
             updateCharts();
         }
