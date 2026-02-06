@@ -634,7 +634,7 @@
             document.getElementById('previewArea').classList.remove('hidden');
             document.getElementById('finalFilename').value = generatedYaml.name.toLowerCase().replace(/\s+/g, '_');
 
-            Utils.showToast("Protocol generated!", 'success');
+            Utils.showToast("Protocol generated, please check name and save below", 'success');
         }
 
         function generateMultipixelIV(p, pixels) {

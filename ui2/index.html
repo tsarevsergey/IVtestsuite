@@ -7,14 +7,19 @@
     <title>SMU Control - UI2</title>
     <style>
         :root {
-            --bg-primary: #0a0a0f;
-            --bg-secondary: #12121a;
-            --bg-panel: #1a1a24;
-            --border-color: #2a2a3a;
-            --text-primary: #ffffff;
-            --text-secondary: #888899;
-            --accent-cyan: #00d4ff;
-            --accent-green: #00ff66;
+            --bg-primary: #090d16;
+            --bg-secondary: #111827;
+            --bg-panel: #1f2937;
+            --bg-panel-soft: #0f172a;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --accent-cyan: #22d3ee;
+            --accent-green: #22c55e;
+            --accent-focus: #f59e0b;
+            --danger: #ef4444;
+            --button-bg: #0b3b53;
+            --button-bg-hover: #105270;
         }
 
         * {
@@ -23,593 +28,695 @@
             box-sizing: border-box;
         }
 
+        html,
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg-primary);
+            height: 100%;
+        }
+
+        body {
+            font-family: "Segoe UI", Tahoma, Verdana, sans-serif;
+            background: radial-gradient(circle at top right, #111827, #090d16 45%);
             color: var(--text-primary);
-            min-height: 100vh;
-            display: flex;
+            min-height: 100dvh;
+            overflow: hidden;
+        }
+
+        .skip-link {
+            position: absolute;
+            left: -999px;
+            top: 0;
+            z-index: 11000;
+            background: #ffffff;
+            color: #000000;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0 0 6px 0;
+        }
+
+        .skip-link:focus {
+            left: 0;
+        }
+
+        .app-shell {
+            height: 100dvh;
+            display: grid;
+            grid-template-columns: minmax(250px, 280px) 1fr;
         }
 
         .sidebar {
-            width: 240px;
-            background: var(--bg-secondary);
+            background: linear-gradient(180deg, rgba(17, 24, 39, 0.95), rgba(15, 23, 42, 0.95));
             border-right: 1px solid var(--border-color);
-            padding: 1rem;
             display: flex;
             flex-direction: column;
+            min-height: 0;
+        }
+
+        .sidebar-header {
+            padding: 0.9rem 1rem 0.5rem;
+            border-bottom: 1px solid var(--border-color);
         }
 
         .logo {
-            font-size: 1.25rem;
+            font-size: 1.15rem;
             font-weight: 700;
-            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 2rem;
-            padding: 0.5rem 0;
+            color: var(--accent-cyan);
+            letter-spacing: 0.02em;
+        }
+
+        .sidebar-scroll {
+            overflow: auto;
+            padding: 0.9rem 1rem;
+            min-height: 0;
+            flex: 1;
         }
 
         .nav-section {
-            margin-bottom: 1.5rem;
+            margin-bottom: 1rem;
         }
 
         .nav-title {
-            font-size: 0.7rem;
+            font-size: 0.74rem;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.08em;
             color: var(--text-secondary);
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.45rem;
         }
 
         .nav-link {
-            display: block;
-            padding: 0.6rem 0.75rem;
-            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            min-height: 2.75rem;
+            padding: 0.5rem 0.7rem;
+            color: var(--text-primary);
             text-decoration: none;
-            border-radius: 6px;
-            margin-bottom: 0.25rem;
-            transition: all 0.2s;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            margin-bottom: 0.35rem;
+            background: transparent;
+            transition: background 0.2s ease, border-color 0.2s ease;
         }
 
         .nav-link:hover {
-            background: var(--bg-panel);
-            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(148, 163, 184, 0.35);
         }
 
         .nav-link.active {
-            background: linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(0, 255, 102, 0.15));
-            color: var(--accent-cyan);
-            border-left: 3px solid var(--accent-cyan);
+            background: rgba(34, 211, 238, 0.16);
+            border-color: rgba(34, 211, 238, 0.6);
+            color: #ecfeff;
         }
 
-        .nav-link .icon {
-            margin-right: 0.5rem;
-        }
-
-        .main-content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .header {
-            height: 50px;
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 1.5rem;
-        }
-
-        .status-bar {
-            display: flex;
-            gap: 1rem;
-            font-size: 0.8rem;
-        }
-
-        .status-item {
-            display: flex;
-            align-items: center;
-            gap: 0.35rem;
-        }
-
-        .led {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #444;
-        }
-
-        .led.ok {
-            background: var(--accent-green);
-        }
-
-        .led.error {
-            background: #ff4444;
-        }
-
-        .page-frame {
-            flex: 1;
-            border: none;
-        }
-
-        .footer {
-            height: 30px;
-            background: var(--bg-secondary);
-            border-top: 1px solid var(--border-color);
-            display: flex;
+        .icon {
+            font-size: 0.67rem;
+            min-width: 1.8rem;
+            height: 1.25rem;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.7rem;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
             color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.04);
         }
 
-        /* User Profile & Login */
-        .user-profile {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 1rem 0;
-            border-top: 1px solid var(--border-color);
-            margin-top: 1rem;
-        }
-
-        .avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: var(--bg-panel);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid var(--accent-cyan);
-            font-size: 0.9rem;
-        }
-
-        .user-info {
-            flex: 1;
-            font-size: 0.85rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .user-info .name {
-            font-weight: 600;
-        }
-
-        .btn-switch {
-            font-size: 0.7rem;
-            color: var(--accent-cyan);
-            cursor: pointer;
-            text-decoration: underline;
-        }
-
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.9);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-        }
-
-        .login-card {
-            background: var(--bg-panel);
-            padding: 2.5rem;
-            border-radius: 12px;
-            width: 400px;
-            border: 1px solid var(--border-color);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-        }
-
-        .login-card h2 {
-            margin-bottom: 0.5rem;
-            text-align: center;
-        }
-
-        .login-card p {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        .user-list {
-            max-height: 200px;
-            overflow-y: auto;
-            margin-bottom: 1.5rem;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-        }
-
-        .user-item {
-            padding: 0.75rem 1rem;
-            cursor: pointer;
-            transition: background 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .user-item:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        .user-item.selected {
-            color: var(--accent-cyan);
-            background: rgba(0, 212, 255, 0.05);
-        }
-
-        /* Premium Sidebar Connection Controls */
         .conn-card {
-            background: rgba(255, 255, 255, 0.03);
+            background: var(--bg-panel-soft);
             border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 0.75rem;
-            margin-top: 0.5rem;
+        }
+
+        .mock-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+        }
+
+        .mock-toggle input {
+            inline-size: 1rem;
+            block-size: 1rem;
+            accent-color: var(--accent-cyan);
         }
 
         .conn-grid {
             display: grid;
-            grid-template-columns: 1fr;
             gap: 0.5rem;
-            margin-top: 0.5rem;
         }
 
         .btn-conn {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0.6rem 0.8rem;
-            border-radius: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-secondary);
-            font-size: 0.75rem;
-            font-weight: 600;
+            min-height: 2.75rem;
+            padding: 0.6rem 0.75rem;
+            border-radius: 8px;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            background: var(--button-bg);
+            color: #f0f9ff;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
             cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
 
         .btn-conn:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: rgba(255, 255, 255, 0.2);
-            color: var(--text-primary);
+            background: var(--button-bg-hover);
+            border-color: #7dd3fc;
         }
 
         .btn-conn .dot {
-            width: 8px;
-            height: 8px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
-            background: #444;
-            transition: all 0.3s;
-            box-shadow: 0 0 0px transparent;
+            background: #475569;
         }
 
-        /* Connected States */
         .btn-conn.ok {
-            background: rgba(0, 212, 255, 0.1);
-            border-color: rgba(0, 212, 255, 0.3);
-            color: var(--accent-cyan);
-            box-shadow: 0 4px 12px rgba(0, 212, 255, 0.1);
+            background: rgba(8, 145, 178, 0.22);
+            border-color: rgba(34, 211, 238, 0.8);
+            color: #cffafe;
         }
 
         .btn-conn.ok .dot {
             background: var(--accent-cyan);
-            box-shadow: 0 0 8px var(--accent-cyan);
+            box-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
         }
 
         .btn-conn.ok-alt {
-            background: rgba(0, 255, 102, 0.1);
-            border-color: rgba(0, 255, 102, 0.3);
-            color: var(--accent-green);
+            background: rgba(21, 128, 61, 0.23);
+            border-color: rgba(34, 197, 94, 0.8);
+            color: #dcfce7;
         }
 
         .btn-conn.ok-alt .dot {
             background: var(--accent-green);
-            box-shadow: 0 0 8px var(--accent-green);
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.7);
         }
 
         .btn-conn.error {
-            background: rgba(255, 68, 68, 0.1);
-            border-color: rgba(255, 68, 68, 0.3);
-            color: #ff4444;
+            background: rgba(127, 29, 29, 0.28);
+            border-color: rgba(248, 113, 113, 0.8);
+            color: #fee2e2;
         }
 
         .btn-conn.error .dot {
-            background: #ff4444;
-            box-shadow: 0 0 8px #ff4444;
+            background: var(--danger);
         }
 
-        .btn-conn.busy {
-            animation: pulse-conn 2s infinite;
-        }
-
-        @keyframes pulse-conn {
-            0% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.6;
-            }
-
-            100% {
-                opacity: 1;
-            }
-        }
-
-        .mock-toggle {
+        .user-profile {
+            border-top: 1px solid var(--border-color);
+            padding: 0.8rem 1rem;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            margin-bottom: 0.75rem;
+            gap: 0.75rem;
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #155e75;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(34, 211, 238, 0.7);
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #ecfeff;
+        }
+
+        .user-info {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .user-info .name {
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .btn-switch {
+            margin-top: 0.2rem;
+            border: none;
+            background: transparent;
+            color: #7dd3fc;
+            font-size: 0.8rem;
+            text-decoration: underline;
             cursor: pointer;
-            user-select: none;
-            padding: 0.2rem 0.4rem;
-            border-radius: 4px;
-            transition: background 0.2s;
+            padding: 0;
         }
 
-        .mock-toggle:hover {
-            background: rgba(255, 255, 255, 0.05);
+        .main-content {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            min-height: 0;
+            overflow: hidden;
         }
 
-        .mock-toggle input {
-            accent-color: var(--accent-cyan);
+        .header {
+            background: rgba(15, 23, 42, 0.96);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.55rem 0.9rem;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.55rem;
         }
 
-        /* Detailed Relay Indicators */
+        .header h1 {
+            font-size: 1rem;
+            line-height: 1.2;
+        }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.7rem;
+            font-size: 0.78rem;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            color: var(--text-secondary);
+        }
+
+        .led {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #64748b;
+        }
+
+        .led.ok {
+            background: var(--accent-green);
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.8);
+        }
+
+        .led.error {
+            background: var(--danger);
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
+        }
+
         .relay-sub-group {
             display: flex;
             align-items: center;
             gap: 4px;
-            margin-right: 12px;
-            padding: 0 8px;
+            padding-left: 0.6rem;
             border-left: 1px solid var(--border-color);
         }
 
         .sub-label {
-            font-size: 0.65rem;
+            font-size: 0.68rem;
             color: var(--text-secondary);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-right: 4px;
+            letter-spacing: 0.04em;
+            margin-right: 2px;
         }
 
         .indicator {
-            width: 10px;
-            height: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(0, 0, 0, 0.2);
-            transition: all 0.2s ease;
+            width: 11px;
+            height: 11px;
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            background: #0b1220;
         }
 
-        /* Square for Pixels */
         .indicator.pixel-sub {
             border-radius: 2px;
         }
 
-        /* Circle for LEDs */
         .indicator.led-sub {
             border-radius: 50%;
         }
 
-        /* Electric Blue ON state (Default) */
         .indicator.on {
-            background: #00d4ff;
-            border-color: #00d4ff;
-            box-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
+            background: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 8px rgba(34, 211, 238, 0.8);
         }
 
-        /* Red ON state */
         .indicator.on.red {
-            background: #ff4444;
-            border-color: #ff4444;
-            box-shadow: 0 0 8px rgba(255, 68, 68, 0.6);
+            background: var(--danger);
+            border-color: var(--danger);
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
         }
 
-        /* Green ON state */
         .indicator.on.green {
-            background: #00ff66;
-            border-color: #00ff66;
-            box-shadow: 0 0 8px rgba(0, 255, 102, 0.6);
+            background: var(--accent-green);
+            border-color: var(--accent-green);
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.8);
+        }
+
+        .frame-wrap {
+            min-height: 0;
+            background: var(--bg-primary);
+        }
+
+        .page-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        .footer {
+            min-height: 1.8rem;
+            background: rgba(15, 23, 42, 0.95);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.74rem;
+            color: var(--text-secondary);
+            padding: 0.25rem 0.5rem;
+            text-align: center;
+        }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.92);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            padding: 1rem;
+        }
+
+        .login-card {
+            background: var(--bg-panel);
+            padding: 1.4rem;
+            border-radius: 12px;
+            width: min(420px, 96vw);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+        }
+
+        .login-card h2 {
+            margin-bottom: 0.4rem;
+            text-align: center;
+            font-size: 1.1rem;
+        }
+
+        .login-card p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .user-list {
+            max-height: 190px;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.65);
+        }
+
+        .user-item {
+            padding: 0.7rem 0.9rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            width: 100%;
+            border: none;
+            background: transparent;
+            color: var(--text-primary);
+            font: inherit;
+            text-align: left;
+        }
+
+        .user-item:hover,
+        .user-item:focus-visible {
+            background: rgba(34, 211, 238, 0.13);
+            outline: none;
+        }
+
+        .input-group {
+            display: grid;
+            gap: 0.4rem;
+            margin-bottom: 0.9rem;
+        }
+
+        .input-group label {
+            color: var(--text-secondary);
+            font-size: 0.86rem;
+        }
+
+        .input-group input {
+            min-height: 2.6rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: #0f172a;
+            color: var(--text-primary);
+            padding: 0.55rem 0.7rem;
+        }
+
+        .btn-full {
+            width: 100%;
+            min-height: 2.75rem;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .btn-primary {
+            background: #0369a1;
+            color: #f0f9ff;
+        }
+
+        .btn-primary:hover {
+            background: #0c4a6e;
+        }
+
+        button:focus-visible,
+        a:focus-visible,
+        input:focus-visible,
+        .user-item:focus-visible {
+            outline: 3px solid var(--accent-focus);
+            outline-offset: 2px;
+        }
+
+        @media (max-width: 980px) {
+            .app-shell {
+                grid-template-columns: minmax(220px, 245px) 1fr;
+            }
+
+            .status-bar {
+                gap: 0.5rem;
+            }
+        }
+
+        @media (max-width: 780px) {
+            .app-shell {
+                min-height: 100dvh;
+                grid-template-columns: 1fr;
+                grid-template-rows: minmax(250px, 38dvh) 1fr;
+            }
+
+            .sidebar {
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .main-content {
+                min-height: 62dvh;
+            }
+
+            .relay-sub-group {
+                border-left: none;
+                padding-left: 0;
+            }
         }
     </style>
 </head>
 
 <body>
-    <!-- Login Overlay -->
-    <div id="loginOverlay" class="overlay" style="display: none;">
-        <div class="login-card">
-            <h2>👤 User Selection</h2>
-            <p>Please select an existing profile or create a new one.</p>
+    <a class="skip-link" href="#mainFrame">Skip to main content</a>
 
-            <div id="userList" class="user-list">
-                <!-- Users here -->
-            </div>
+    <div id="loginOverlay" class="overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+        <div class="login-card">
+            <h2 id="loginTitle">User Selection</h2>
+            <p>Select an existing profile or create a new one.</p>
+
+            <div id="userList" class="user-list" role="listbox" aria-label="Existing users"></div>
 
             <div class="input-group">
-                <label>Create New User</label>
-                <input type="text" id="newUserName" placeholder="Enter name...">
+                <label for="newUserName">Create New User</label>
+                <input type="text" id="newUserName" placeholder="Enter name..." autocomplete="off">
             </div>
-            <button class="btn-full btn-primary" id="loginBtn" onclick="handleLogin()">Create & Login</button>
-        </div>
-    </div>
-    <div class="sidebar">
-        <div class="logo">⚡ SMU Control</div>
-
-        <div class="nav-section">
-            <div class="nav-title">Operations</div>
-            <a href="live_hud.html" class="nav-link" target="pageFrame">
-                <span class="icon">📊</span> Live HUD
-            </a>
-            <a href="protocol_runner.html" class="nav-link" target="pageFrame">
-                <span class="icon">▶️</span> Protocol Runner
-            </a>
-            <a href="experiment_wizard.html" class="nav-link" target="pageFrame">
-                <span class="icon">🧙‍♂️</span> Experiment Wizard
-            </a>
-        </div>
-
-        <div class="nav-section">
-            <div class="nav-title">Configuration</div>
-            <a href="protocol_builder.html" class="nav-link" target="pageFrame">
-                <span class="icon">🏗️</span> Protocol Builder
-            </a>
-            <a href="light_calibration.html" class="nav-link" target="pageFrame">
-                <span class="icon">💡</span> Light Calibration
-            </a>
-        </div>
-
-        <div class="nav-section">
-            <div class="nav-title">Analysis</div>
-            <a href="data_viewer.html" class="nav-link" target="pageFrame">
-                <span class="icon">📂</span> Data Viewer
-            </a>
-        </div>
-
-        <div style="flex:1"></div>
-
-        <div class="nav-section">
-            <div class="nav-title">System</div>
-            <a href="relay_test.html" class="nav-link" target="pageFrame">
-                <span class="icon">🔌</span> Relay Test
-            </a>
-            <a href="api_tester.html" class="nav-link" target="pageFrame">
-                <span class="icon">🧪</span> API Tester
-            </a>
-        </div>
-
-        <div class="nav-section">
-            <div class="nav-title">Hardware Status</div>
-            <div class="conn-card">
-                <label class="mock-toggle">
-                    <input type="checkbox" id="mockModeGlobal">
-                    <span>Virtual Mock Mode</span>
-                </label>
-                <div class="conn-grid">
-                    <button class="btn-conn" id="btnSideSmu1" onclick="doConnectSMU(1)">
-                        <span>SMU Channel 1</span>
-                        <div class="dot" id="dotSideSmu1"></div>
-                    </button>
-                    <button class="btn-conn" id="btnSideSmu2" onclick="doConnectSMU(2)">
-                        <span>SMU Channel 2</span>
-                        <div class="dot" id="dotSideSmu2"></div>
-                    </button>
-                    <button class="btn-conn" id="btnSideRelay" onclick="doConnectRelays()">
-                        <span>Arduino Relays</span>
-                        <div class="dot" id="dotSideRelay"></div>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div class="user-profile">
-            <div class="avatar" id="userAvatar">A</div>
-            <div class="user-info">
-                <div class="name" id="currentUserName">Guest</div>
-                <div class="btn-switch" onclick="showLogin()">Switch User</div>
-            </div>
+            <button class="btn-full btn-primary" id="loginBtn" onclick="handleLogin()">Create and Login</button>
         </div>
     </div>
 
-    <div class="main-content">
-        <div class="header">
-            <span id="pageTitle">Live HUD</span>
-            <div class="status-bar">
-                <div class="status-item">
-                    <div class="led" id="backendLed"></div>
-                    <span>Backend</span>
-                </div>
-                <div class="status-item">
-                    <div class="led" id="smu1Led"></div>
-                    <span>SMU1</span>
-                </div>
-                <div class="status-item">
-                    <div class="led" id="smu2Led"></div>
-                    <span>SMU2</span>
-                </div>
-                <div class="status-item"
-                    style="border-right: 1px solid var(--border-color); padding-right: 12px; margin-right: 8px;">
-                    <div class="led" id="relayLed"></div>
-                    <span>Relays</span>
+    <div class="app-shell">
+        <aside class="sidebar" aria-label="Primary navigation">
+            <div class="sidebar-header">
+                <div class="logo">SMU Control</div>
+            </div>
+
+            <div class="sidebar-scroll">
+                <div class="nav-section">
+                    <div class="nav-title">Operations</div>
+                    <a href="live_hud.html" class="nav-link" target="pageFrame">
+                        <span class="icon" aria-hidden="true">HUD</span> Live HUD
+                    </a>
+                    <a href="protocol_runner.html" class="nav-link" target="pageFrame">
+                        <span class="icon" aria-hidden="true">RUN</span> Protocol Runner
+                    </a>
+                    <a href="experiment_wizard.html" class="nav-link" target="pageFrame">
+                        <span class="icon" aria-hidden="true">WIZ</span> Experiment Wizard
+                    </a>
                 </div>
 
-                <!-- Pixel Relay sub-indicators (1-6) -->
-                <div class="relay-sub-group">
-                    <span class="sub-label">Pixel</span>
-                    <div id="subP1" class="indicator pixel-sub" title="Pixel 1"></div>
-                    <div id="subP2" class="indicator pixel-sub" title="Pixel 2"></div>
-                    <div id="subP3" class="indicator pixel-sub" title="Pixel 3"></div>
-                    <div id="subP4" class="indicator pixel-sub" title="Pixel 4"></div>
-                    <div id="subP5" class="indicator pixel-sub" title="Pixel 5"></div>
-                    <div id="subP6" class="indicator pixel-sub" title="Pixel 6"></div>
+                <div class="nav-section">
+                    <div class="nav-title">Configuration</div>
+                    <a href="protocol_builder.html" class="nav-link" target="pageFrame">
+                        <span class="icon" aria-hidden="true">BLD</span> Protocol Builder
+                    </a>
+                    <a href="light_calibration.html" class="nav-link" target="pageFrame">
+                        <span class="icon" aria-hidden="true">CAL</span> Light Calibration
+                    </a>
                 </div>
 
-                <!-- LED Relay sub-indicators (2,3,4) -->
-                <div class="relay-sub-group" style="border-left: none;">
-                    <span class="sub-label">LED</span>
-                    <div id="subL2" class="indicator led-sub" title="LED 2"></div>
-                    <div id="subL3" class="indicator led-sub red" title="LED 3"></div>
-                    <div id="subL4" class="indicator led-sub green" title="LED 4"></div>
+                <div class="nav-section">
+                    <div class="nav-title">Analysis</div>
+                    <a href="data_viewer.html" class="nav-link" target="pageFrame">
+                        <span class="icon" aria-hidden="true">DATA</span> Data Viewer
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-title">System</div>
+                    <a href="relay_test.html" class="nav-link" target="pageFrame">
+                        <span class="icon" aria-hidden="true">RLY</span> Relay Test
+                    </a>
+                    <a href="api_tester.html" class="nav-link" target="pageFrame">
+                        <span class="icon" aria-hidden="true">API</span> API Tester
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-title">Hardware Status</div>
+                    <div class="conn-card">
+                        <label class="mock-toggle" for="mockModeGlobal">
+                            <input type="checkbox" id="mockModeGlobal">
+                            <span>Virtual Mock Mode</span>
+                        </label>
+                        <div class="conn-grid">
+                            <button class="btn-conn" id="btnSideSmu1" onclick="doConnectSMU(1)" aria-label="Connect SMU channel 1">
+                                <span>SMU Channel 1</span>
+                                <span class="dot" id="dotSideSmu1" aria-hidden="true"></span>
+                            </button>
+                            <button class="btn-conn" id="btnSideSmu2" onclick="doConnectSMU(2)" aria-label="Connect SMU channel 2">
+                                <span>SMU Channel 2</span>
+                                <span class="dot" id="dotSideSmu2" aria-hidden="true"></span>
+                            </button>
+                            <button class="btn-conn" id="btnSideRelay" onclick="doConnectRelays()" aria-label="Connect Arduino relays">
+                                <span>Arduino Relays</span>
+                                <span class="dot" id="dotSideRelay" aria-hidden="true"></span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <iframe name="pageFrame" class="page-frame" src="live_hud.html"></iframe>
+            <div class="user-profile">
+                <div class="avatar" id="userAvatar" aria-hidden="true">A</div>
+                <div class="user-info">
+                    <div class="name" id="currentUserName">Guest</div>
+                    <button class="btn-switch" type="button" onclick="showLogin()">Switch User</button>
+                </div>
+            </div>
+        </aside>
 
-        <div class="footer">
-            SMU Control UI2 v0.1 | Python Backend + HTML/JS Frontend
+        <div class="main-content">
+            <header class="header">
+                <h1 id="pageTitle">Live HUD</h1>
+                <div class="status-bar" aria-label="System status">
+                    <div class="status-item">
+                        <span class="led" id="backendLed" aria-hidden="true"></span>
+                        <span>Backend</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="led" id="smu1Led" aria-hidden="true"></span>
+                        <span>SMU1</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="led" id="smu2Led" aria-hidden="true"></span>
+                        <span>SMU2</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="led" id="relayLed" aria-hidden="true"></span>
+                        <span>Relays</span>
+                    </div>
+
+                    <div class="relay-sub-group" aria-label="Pixel relay indicators">
+                        <span class="sub-label">Pixel</span>
+                        <span id="subP1" class="indicator pixel-sub" title="Pixel 1"></span>
+                        <span id="subP2" class="indicator pixel-sub" title="Pixel 2"></span>
+                        <span id="subP3" class="indicator pixel-sub" title="Pixel 3"></span>
+                        <span id="subP4" class="indicator pixel-sub" title="Pixel 4"></span>
+                        <span id="subP5" class="indicator pixel-sub" title="Pixel 5"></span>
+                        <span id="subP6" class="indicator pixel-sub" title="Pixel 6"></span>
+                    </div>
+
+                    <div class="relay-sub-group" aria-label="LED relay indicators">
+                        <span class="sub-label">LED</span>
+                        <span id="subL2" class="indicator led-sub" title="LED 2"></span>
+                        <span id="subL3" class="indicator led-sub red" title="LED 3"></span>
+                        <span id="subL4" class="indicator led-sub green" title="LED 4"></span>
+                    </div>
+                </div>
+            </header>
+
+            <main class="frame-wrap" id="mainFrame">
+                <iframe name="pageFrame" class="page-frame" src="live_hud.html" title="SMU workspace page"></iframe>
+            </main>
+
+            <footer class="footer">
+                SMU Control UI2 v0.1 | Python Backend + HTML/JS Frontend
+            </footer>
         </div>
     </div>
 
     <script src="js/api.js"></script>
     <script>
-        // Check backend and hardware status
         async function checkStatus() {
-            // Header LEDs
             const backendLed = document.getElementById('backendLed');
             const smu1Led = document.getElementById('smu1Led');
             const smu2Led = document.getElementById('smu2Led');
             const relayLed = document.getElementById('relayLed');
 
-            // Sidebar buttons & dots
             const btnSmu1 = document.getElementById('btnSideSmu1');
-            const dotSmu1 = document.getElementById('dotSideSmu1');
             const btnSmu2 = document.getElementById('btnSideSmu2');
-            const dotSmu2 = document.getElementById('dotSideSmu2');
             const btnRelay = document.getElementById('btnSideRelay');
-            const dotRelay = document.getElementById('dotSideRelay');
 
             try {
                 const data = await UI2.getRunStatus();
                 if (data.error) throw new Error();
                 backendLed.className = 'led ok';
 
-                // Check SMU status
                 try {
                     const smuStatus = await UI2.getSMUStatus();
-                    const hasCh1 = smuStatus.connected && smuStatus.channels && smuStatus.channels["1"];
-                    const hasCh2 = smuStatus.connected && smuStatus.channels && smuStatus.channels["2"];
+                    const hasCh1 = smuStatus.connected && smuStatus.channels && smuStatus.channels['1'];
+                    const hasCh2 = smuStatus.connected && smuStatus.channels && smuStatus.channels['2'];
 
-                    // Update header
                     smu1Led.className = hasCh1 ? 'led ok' : 'led';
                     smu2Led.className = hasCh2 ? 'led ok' : 'led';
-
-                    // Update sidebar
                     btnSmu1.classList.toggle('ok', !!hasCh1);
                     btnSmu2.classList.toggle('ok', !!hasCh2);
                 } catch (e) {
@@ -619,18 +726,13 @@
                     btnSmu2.classList.remove('ok');
                 }
 
-                // Check Relay status
                 try {
                     const relayStatus = await UI2.getRelayStatus();
                     const isRelayOk = relayStatus.connected || false;
 
-                    // Update header
                     relayLed.className = isRelayOk ? 'led ok' : 'led';
-
-                    // Update sidebar
                     btnRelay.classList.toggle('ok-alt', !!isRelayOk);
 
-                    // Update sub-indicators if connected
                     if (isRelayOk && relayStatus.pixel_board && relayStatus.rgb_board) {
                         const pStates = relayStatus.pixel_board.relay_states || {};
                         const lStates = relayStatus.rgb_board.relay_states || {};
@@ -644,7 +746,6 @@
                             if (el) el.classList.toggle('on', lStates[i] === 'ON');
                         }
                     } else {
-                        // Reset all to off
                         document.querySelectorAll('.indicator').forEach(el => el.classList.remove('on'));
                     }
                 } catch (e) {
@@ -653,14 +754,12 @@
                     document.querySelectorAll('.indicator').forEach(el => el.classList.remove('on'));
                 }
             } catch (e) {
-                // System down
                 backendLed.className = 'led error';
                 [smu1Led, smu2Led, relayLed].forEach(l => l.className = 'led');
                 [btnSmu1, btnSmu2, btnRelay].forEach(b => b.classList.remove('ok', 'ok-alt'));
             }
         }
 
-        // --- User System ---
         async function showLogin() {
             const overlay = document.getElementById('loginOverlay');
             const listEl = document.getElementById('userList');
@@ -673,9 +772,10 @@
                 listEl.innerHTML = '<div style="padding:1rem; color:var(--text-secondary); text-align:center;">No existing users</div>';
             } else {
                 users.forEach(user => {
-                    const item = document.createElement('div');
+                    const item = document.createElement('button');
+                    item.type = 'button';
                     item.className = 'user-item';
-                    item.innerHTML = `<span>👤</span> ${user}`;
+                    item.textContent = `User: ${user}`;
                     item.onclick = () => selectUser(user);
                     listEl.appendChild(item);
                 });
@@ -686,7 +786,6 @@
             UI2.setCurrentUser(name);
             updateUserUI();
             document.getElementById('loginOverlay').style.display = 'none';
-            // Reload current frame to apply user context
             const frame = document.querySelector('.page-frame');
             frame.src = frame.src;
         }
@@ -713,7 +812,6 @@
             }
         }
 
-        // --- Navigation ---
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', function () {
                 document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
@@ -722,12 +820,11 @@
             });
         });
 
-        // --- System Connection Handlers ---
         async function doConnectSMU(ch) {
             const mock = document.getElementById('mockModeGlobal').checked;
             const res = await UI2.connectSMU(ch, mock);
             if (res.success !== false) {
-                checkStatus(); // Refresh LEDs
+                checkStatus();
             } else {
                 alert(`SMU CH${ch} connection failed: ${res.message}`);
             }
@@ -737,13 +834,12 @@
             const mock = document.getElementById('mockModeGlobal').checked;
             const res = await UI2.connectRelays(mock);
             if (res.success !== false) {
-                checkStatus(); // Refresh LEDs
+                checkStatus();
             } else {
                 alert(`Relay connection failed: ${res.message}`);
             }
         }
 
-        // Initial state
         document.querySelector('.nav-link').classList.add('active');
         updateUserUI();
         checkStatus();
