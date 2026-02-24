@@ -26,13 +26,24 @@ class Keithley2400Controller(BaseSMU):
     - Single channel only
     """
     
-    def __init__(self, address: str, channel: int = 1, mock: bool = False, name: str = "SMU"):
+    def __init__(
+        self,
+        address: str,
+        channel: int = 1,
+        mock: bool = False,
+        name: str = "SMU",
+        existing_resource=None,
+        reset_on_connect: bool = True
+    ):
         if channel != 1:
             raise ValueError("Keithley 2400 is single-channel. Only channel=1 is valid.")
         super().__init__(address, channel, mock, name)
-        self.resource = None
+        self.existing_resource = existing_resource
+        self.resource = existing_resource
         self.rm = None
         self.software_current_limit = None
+        self.reset_on_connect = reset_on_connect
+        self._owns_resource = existing_resource is None
     
     @staticmethod
     def get_smu_type() -> str:
@@ -62,6 +73,20 @@ class Keithley2400Controller(BaseSMU):
             self.logger.info(f"MOCK: Connected to Keithley 2400 at {self.address}")
             self.to_state(SMUState.IDLE)
             return
+
+        if self.existing_resource is not None:
+            self.resource = self.existing_resource
+            self.logger.info("Using SHARED resource for Keithley 2400")
+            try:
+                if self.reset_on_connect:
+                    self.resource.write("*RST")
+                self.resource.write(":SOUR:FUNC VOLT")
+                self._source_mode = "VOLT"
+                self.to_state(SMUState.IDLE)
+                return
+            except Exception as e:
+                self.handle_error(f"Failed to init shared resource: {e}")
+                return
         
         if pyvisa is None:
             self.handle_error("PyVISA not installed")
@@ -98,14 +123,14 @@ class Keithley2400Controller(BaseSMU):
             except:
                 pass
         
-        if self.resource:
+        if self.resource and self._owns_resource:
             try:
                 self.resource.close()
             except:
                 pass
         
         self.resource = None
-        if self.rm:
+        if self.rm and self._owns_resource:
             try:
                 self.rm.close()
             except:

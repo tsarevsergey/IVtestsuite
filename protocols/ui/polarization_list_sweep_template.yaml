@@ -1,0 +1,47 @@
+name: polarization_list_sweep_template
+description: Two-segment polarization list sweep example (5 points at 1.0V, then 10 points at 0.0V).
+version: 1.0
+steps:
+- action: smu/connect
+  params:
+    channel: 2
+    mock: false
+- action: smu/configure
+  params:
+    channel: 2
+    compliance: 0.1
+    compliance_type: CURR
+    nplc: 1.0
+- action: smu/source-mode
+  params:
+    channel: 2
+    mode: VOLT
+- action: smu/list-sweep
+  params:
+    channel: 2
+    points:
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    source_mode: VOLT
+    compliance: 0.1
+    nplc: 1.0
+    delay: 1.0
+  capture_as: polarization_data
+- action: data/save
+  params:
+    data: $polarization_data
+    filename: polarization_list_sweep
+    folder: ./data

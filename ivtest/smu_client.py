@@ -26,6 +26,7 @@ logger = get_logger("smu_client")
 
 # Default SMU address - Updated for 2-channel B2902A
 DEFAULT_SMU_ADDRESS = "USB0::2391::35864::MY51141849::0::INSTR"
+SINGLE_CHANNEL_TYPES = {"keysight_b2901", "keithley_2400"}
 
 
 @dataclass
@@ -155,6 +156,18 @@ class SMUClient:
             channel = self._active_channel
         
         ctrl = self._controllers.get(channel)
+
+        # For single-channel devices, gracefully map any logical channel to Ch1
+        if not ctrl and self._status.connected and self._status.smu_type in SINGLE_CHANNEL_TYPES:
+            ctrl = self._controllers.get(1)
+            if ctrl:
+                if channel != 1:
+                    logger.info(
+                        f"Single-channel SMU ({self._status.smu_type}): "
+                        f"mapping requested channel {channel} -> 1"
+                    )
+                self._active_channel = 1
+                return ctrl
         
         # Lazy connection logic for secondary channel
         if not ctrl and self._status.connected and self._status.smu_type == "keysight_b2902":
@@ -210,6 +223,43 @@ class SMUClient:
             # If address changes or type changes, we should disconnect everything
             if self._controllers and (address != self._status.address):
                 self.disconnect()
+
+            # Already connected to this logical channel on same address
+            if self._controllers and channel in self._controllers and address == self._status.address:
+                ctrl = self._controllers[channel]
+                self._active_channel = channel
+                return {
+                    "success": True,
+                    "message": f"Channel {channel} already connected",
+                    "address": address,
+                    "channel": channel,
+                    "smu_type": ctrl.get_smu_type(),
+                    "mock": self._status.mock
+                }
+
+            # Single-channel device: channel requests >1 map to the same physical channel
+            if (
+                self._controllers
+                and address == self._status.address
+                and self._status.smu_type in SINGLE_CHANNEL_TYPES
+                and channel != 1
+            ):
+                base_ctrl = self._controllers.get(1) or next(iter(self._controllers.values()), None)
+                if base_ctrl:
+                    self._active_channel = 1
+                    logger.info(
+                        f"Single-channel SMU ({self._status.smu_type}) already connected; "
+                        f"using shared resource and mapping requested channel {channel} -> 1"
+                    )
+                    return {
+                        "success": True,
+                        "message": f"Single-channel SMU mapped channel {channel} to 1",
+                        "address": address,
+                        "channel": 1,
+                        "requested_channel": channel,
+                        "smu_type": self._status.smu_type,
+                        "mock": self._status.mock
+                    }
             
             # If connecting a NEW channel on SAME address, keep others
             try:
@@ -223,21 +273,41 @@ class SMUClient:
                 if target_type == "auto" and self._status.connected:
                     target_type = self._status.smu_type
                 
-                if self._controllers and (target_type == "keysight_b2902" or self._status.smu_type == "keysight_b2902") and address == self._status.address:
+                if self._controllers and address == self._status.address:
                     existing_ctrl = next(iter(self._controllers.values()), None)
                     existing_res = getattr(existing_ctrl, 'resource', None)
                 
                 # Check if this is the FIRST connection
                 is_first = len(self._controllers) == 0
                 
-                new_ctrl = create_smu_from_string(
-                    smu_type_str=target_type,
-                    address=address,
-                    channel=channel,
-                    mock=mock,
-                    name=f"SMU_{channel}",
-                    existing_resource=existing_res
-                )
+                actual_channel = channel
+                try:
+                    new_ctrl = create_smu_from_string(
+                        smu_type_str=target_type,
+                        address=address,
+                        channel=actual_channel,
+                        mock=mock,
+                        name=f"SMU_{actual_channel}",
+                        existing_resource=existing_res
+                    )
+                except Exception as first_err:
+                    msg = str(first_err).lower()
+                    if channel != 1 and "single-channel" in msg:
+                        logger.warning(
+                            f"Single-channel instrument rejected channel {channel}; "
+                            "retrying connection on channel 1 with shared resource semantics."
+                        )
+                        actual_channel = 1
+                        new_ctrl = create_smu_from_string(
+                            smu_type_str=target_type,
+                            address=address,
+                            channel=actual_channel,
+                            mock=mock,
+                            name=f"SMU_{actual_channel}",
+                            existing_resource=existing_res
+                        )
+                    else:
+                        raise
                 
                 # If adding second channel to known B2902, don't reset
                 if not is_first and (smu_type == "keysight_b2902" or new_ctrl.get_smu_type() == "keysight_b2902"):
@@ -249,22 +319,26 @@ class SMUClient:
                 if new_ctrl.state == InstrumentState.ERROR:
                     return {"success": False, "message": "Connection resulted in ERROR state"}
                 
-                self._controllers[channel] = new_ctrl
-                self._active_channel = channel # Set as active
+                self._controllers[actual_channel] = new_ctrl
+                self._active_channel = actual_channel # Set as active
                 
                 self._status.connected = True
                 self._status.mock = mock
-                self._status.channel = channel
+                self._status.channel = actual_channel
                 self._status.address = address
                 self._status.smu_type = new_ctrl.get_smu_type() # Update with resolved type
                 self._status.state = new_ctrl.state.value
                 
-                logger.info(f"SMU connected: type={self._status.smu_type}, address={address}, ch={channel}, mock={mock}")
+                logger.info(f"SMU connected: type={self._status.smu_type}, address={address}, ch={actual_channel}, mock={mock}")
                 
                 return {
                     "success": True, 
                     "message": f"Connected to {new_ctrl.__class__.__name__}",
-                    "address": address, "channel": channel, "smu_type": self._status.smu_type, "mock": mock
+                    "address": address,
+                    "channel": actual_channel,
+                    "requested_channel": channel,
+                    "smu_type": self._status.smu_type,
+                    "mock": mock
                 }
                 
             except Exception as e:

@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polarization List Sweep Runner - UI2</title>
+    <link rel="stylesheet" href="css/theme.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <style>
+        .layout {
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 0.75rem;
+            height: calc(100vh - 120px);
+        }
+
+        .chart-wrap {
+            height: 320px;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.5rem;
+        }
+
+        .metric .k {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .metric .v {
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+
+        .table-wrap {
+            max-height: calc(100vh - 560px);
+            overflow: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.78rem;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.35rem 0.45rem;
+            text-align: right;
+        }
+
+        th:first-child,
+        td:first-child {
+            text-align: left;
+        }
+
+        .stage-badge {
+            padding: 0.08rem 0.35rem;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            font-weight: 700;
+        }
+
+        .s1 {
+            background: rgba(0, 212, 255, 0.18);
+            color: var(--accent-cyan);
+        }
+
+        .s2 {
+            background: rgba(16, 185, 129, 0.18);
+            color: var(--accent-green);
+        }
+    </style>
+</head>
+
+<body style="overflow:hidden;">
+    <div class="container" style="padding:0.5rem 0.8rem;">
+        <div class="page-header" style="margin-bottom:0.5rem; padding-bottom:0.4rem;">
+            <h1 class="page-title" style="font-size:1.1rem;">Polarization List Sweep Runner</h1>
+        </div>
+
+        <div class="layout">
+            <div>
+                <div class="panel" style="padding:0.75rem;">
+                    <div class="panel-title">Sweep Setup</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Channel</label>
+                            <select id="ch">
+                                <option value="1">CH 1</option>
+                                <option value="2" selected>CH 2</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Mock</label>
+                            <select id="mock">
+                                <option value="false" selected>False</option>
+                                <option value="true">True</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>NPLC</label>
+                            <input type="number" id="nplc" value="1.0" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label>Delay (s)</label>
+                            <input type="number" id="delay" value="1.0" step="0.05">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Compliance (A)</label>
+                        <input type="number" id="compliance" value="0.1" step="0.01">
+                    </div>
+
+                    <div class="panel-secondary border-radius p-2 mb-2">
+                        <div class="text-small font-bold mb-1">Segment 1</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Voltage V1 (V)</label>
+                                <input type="number" id="v1" value="1.0" step="0.1">
+                            </div>
+                            <div class="form-group">
+                                <label>Points X</label>
+                                <input type="number" id="xPts" value="5" step="1" min="1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel-secondary border-radius p-2 mb-2">
+                        <div class="text-small font-bold mb-1">Segment 2</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Voltage V2 (V)</label>
+                                <input type="number" id="v2" value="0.0" step="0.1">
+                            </div>
+                            <div class="form-group">
+                                <label>Points Y</label>
+                                <input type="number" id="yPts" value="10" step="1" min="1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel-secondary border-radius p-2 mb-2">
+                        <div class="text-small font-bold mb-1">Save</div>
+                        <div class="form-group mb-1">
+                            <label>Folder</label>
+                            <input type="text" id="folder" value="./data">
+                        </div>
+                        <div class="form-group">
+                            <label>Filename</label>
+                            <input type="text" id="filename" value="">
+                        </div>
+                    </div>
+
+                    <div class="btn-row gap-1">
+                        <button class="btn btn-success" id="btnRun" onclick="startSweep()">Run Sweep</button>
+                        <button class="btn btn-danger" id="btnStop" onclick="stopSweep(true)" disabled>Stop</button>
+                    </div>
+                    <button class="btn btn-primary btn-full mt-1" onclick="saveNow()">Save Latest Data</button>
+                </div>
+            </div>
+
+            <div>
+                <div class="metrics">
+                    <div class="metric">
+                        <div class="k">Stage</div>
+                        <div class="v" id="mStage">Idle</div>
+                    </div>
+                    <div class="metric">
+                        <div class="k">Progress</div>
+                        <div class="v" id="mProgress">0/0</div>
+                    </div>
+                    <div class="metric">
+                        <div class="k">Elapsed</div>
+                        <div class="v" id="mElapsed">0.0s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="k">Current</div>
+                        <div class="v text-cyan" id="mCurrent">-- A</div>
+                    </div>
+                </div>
+
+                <div class="panel mb-2">
+                    <div class="panel-title">Live Current Trace</div>
+                    <div class="chart-wrap"><canvas id="chart"></canvas></div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">Live Points</div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Stage</th>
+                                    <th>Set V (V)</th>
+                                    <th>Meas V (V)</th>
+                                    <th>Current (A)</th>
+                                    <th>t (s)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rows"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chart = null;
+        let pollTimer = null;
+        let stageTimer = null;
+        let running = false;
+        let startTs = 0;
+        let params = null;
+        let dataRows = [];
+        let pushedCount = 0;
+        let stageTwoApplied = false;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initChart();
+            const ts = Utils.getTimestamp();
+            document.getElementById('filename').value = `polarization_sweep_${ts}`;
+        });
+
+        function initChart() {
+            const ctx = document.getElementById('chart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Current (A)',
+                        data: [],
+                        borderColor: '#00d4ff',
+                        backgroundColor: 'rgba(0,212,255,0.10)',
+                        borderWidth: 2,
+                        pointRadius: 1.6,
+                        tension: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { labels: { color: '#cbd5e1' } } },
+                    scales: {
+                        x: { title: { display: true, text: 'Time (s)', color: '#94a3b8' }, ticks: { color: '#94a3b8' } },
+                        y: { title: { display: true, text: 'Current (A)', color: '#94a3b8' }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+        }
+
+        function readParams() {
+            return {
+                channel: parseInt(document.getElementById('ch').value),
+                mock: document.getElementById('mock').value === 'true',
+                nplc: parseFloat(document.getElementById('nplc').value),
+                delay: parseFloat(document.getElementById('delay').value),
+                compliance: parseFloat(document.getElementById('compliance').value),
+                v1: parseFloat(document.getElementById('v1').value),
+                xPts: parseInt(document.getElementById('xPts').value),
+                v2: parseFloat(document.getElementById('v2').value),
+                yPts: parseInt(document.getElementById('yPts').value),
+                folder: document.getElementById('folder').value.trim(),
+                filename: document.getElementById('filename').value.trim()
+            };
+        }
+
+        async function ensureConnected(p) {
+            const st = await UI2.api('GET', '/smu/status');
+            if (st?.connected && st?.channels && st.channels[String(p.channel)]) return true;
+            const res = await UI2.api('POST', '/smu/connect', { channel: p.channel, mock: p.mock });
+            return !!res?.success;
+        }
+
+        async function startSweep() {
+            if (running) return;
+            params = readParams();
+            if (!params.filename) return alert('Filename is required');
+            if (params.delay <= 0 || params.xPts < 1 || params.yPts < 1) return alert('Delay and points must be > 0');
+
+            const ok = await ensureConnected(params);
+            if (!ok) return alert('Failed to connect selected channel');
+
+            await UI2.api('POST', '/monitor/stop');
+            const rateHz = Math.max(0.1, Math.min(100, 1 / params.delay));
+            const cfg = await UI2.api('POST', '/monitor/configure', {
+                channel: params.channel,
+                bias_voltage: params.v1,
+                nplc: params.nplc,
+                compliance: params.compliance,
+                rate_hz: rateHz
+            });
+            if (!cfg?.success) return alert(`Configure failed: ${cfg?.message || 'unknown error'}`);
+
+            const start = await UI2.api('POST', '/monitor/start');
+            if (!start?.success) return alert(`Start failed: ${start?.message || 'unknown error'}`);
+
+            running = true;
+            stageTwoApplied = false;
+            startTs = Date.now();
+            dataRows = [];
+            pushedCount = 0;
+            chart.data.labels = [];
+            chart.data.datasets[0].data = [];
+            chart.update();
+            document.getElementById('rows').innerHTML = '';
+            document.getElementById('btnRun').disabled = true;
+            document.getElementById('btnStop').disabled = false;
+            document.getElementById('mStage').textContent = 'Segment 1';
+
+            stageTimer = setTimeout(applyStage2, params.xPts * params.delay * 1000);
+            pollTimer = setInterval(pollData, 200);
+            Utils.showToast('Sweep started', 'success');
+        }
+
+        async function applyStage2() {
+            if (!running || stageTwoApplied) return;
+            await UI2.api('POST', '/smu/set', { channel: params.channel, value: params.v2 });
+            stageTwoApplied = true;
+            document.getElementById('mStage').textContent = 'Segment 2';
+        }
+
+        function stageForIndex(idx) {
+            return idx <= params.xPts ? 1 : 2;
+        }
+
+        async function pollData() {
+            if (!running) return;
+            const res = await UI2.api('GET', '/monitor/data', { last_n: 10000 });
+            const arr = res?.data || [];
+            const totalTarget = params.xPts + params.yPts;
+
+            const newRows = arr.slice(pushedCount);
+            newRows.forEach((d) => {
+                const idx = dataRows.length + 1;
+                const stage = stageForIndex(idx);
+                const setV = stage === 1 ? params.v1 : params.v2;
+                const relT = d.time - arr[0].time;
+                dataRows.push({ time: d.time, voltage: d.voltage, current: d.current });
+
+                chart.data.labels.push(relT.toFixed(2));
+                chart.data.datasets[0].data.push(d.current);
+                appendRow(idx, stage, setV, d.voltage, d.current, relT);
+                document.getElementById('mCurrent').textContent = Utils.formatCurrent(d.current);
+            });
+            pushedCount = arr.length;
+            chart.update('none');
+
+            const elapsed = (Date.now() - startTs) / 1000;
+            document.getElementById('mElapsed').textContent = `${elapsed.toFixed(1)}s`;
+            document.getElementById('mProgress').textContent = `${Math.min(dataRows.length, totalTarget)}/${totalTarget}`;
+
+            if (dataRows.length >= totalTarget) {
+                await stopSweep(false);
+            }
+        }
+
+        function appendRow(idx, stage, setV, measV, curr, tSec) {
+            const tb = document.getElementById('rows');
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${idx}</td>
+                <td><span class="stage-badge ${stage === 1 ? 's1' : 's2'}">S${stage}</span></td>
+                <td>${Number(setV).toFixed(4)}</td>
+                <td>${Number(measV).toExponential(4)}</td>
+                <td>${Number(curr).toExponential(4)}</td>
+                <td>${Number(tSec).toFixed(2)}</td>
+            `;
+            tb.appendChild(tr);
+            if (tb.children.length > 1200) tb.removeChild(tb.firstChild);
+            tb.parentElement.scrollTop = tb.parentElement.scrollHeight;
+        }
+
+        async function stopSweep(manualStop) {
+            if (!running) return;
+            running = false;
+            if (pollTimer) clearInterval(pollTimer);
+            if (stageTimer) clearTimeout(stageTimer);
+            pollTimer = null;
+            stageTimer = null;
+
+            await UI2.api('POST', '/monitor/stop');
+            await UI2.api('POST', '/smu/output', { channel: params.channel, enabled: false });
+
+            document.getElementById('btnRun').disabled = false;
+            document.getElementById('btnStop').disabled = true;
+            document.getElementById('mStage').textContent = manualStop ? 'Stopped' : 'Complete';
+
+            if (!manualStop) {
+                await saveNow();
+                Utils.showToast('Sweep complete and data saved', 'success');
+            } else {
+                Utils.showToast('Sweep stopped', 'warning');
+            }
+        }
+
+        async function saveNow() {
+            if (!dataRows.length) return alert('No data to save');
+            const p = params || readParams();
+            if (!p.filename) return alert('Filename is required');
+            const saveRes = await UI2.api('POST', '/data/save', {
+                data: dataRows,
+                filename: p.filename,
+                folder: p.folder || './data',
+                format: 'csv',
+                append_timestamp: false
+            });
+            if (saveRes?.success) {
+                Utils.showToast(`Saved: ${saveRes.filepath}`, 'success');
+            } else {
+                alert(`Save failed: ${saveRes?.message || 'unknown error'}`);
+            }
+        }
+    </script>
+</body>
+
+</html>
