@@ -281,9 +281,10 @@ class SMUClient:
                 is_first = len(self._controllers) == 0
                 
                 actual_channel = channel
+                resolved_type = target_type
                 try:
                     new_ctrl = create_smu_from_string(
-                        smu_type_str=target_type,
+                        smu_type_str=resolved_type,
                         address=address,
                         channel=actual_channel,
                         mock=mock,
@@ -291,30 +292,83 @@ class SMUClient:
                         existing_resource=existing_res
                     )
                 except Exception as first_err:
-                    msg = str(first_err).lower()
-                    if channel != 1 and "single-channel" in msg:
+                    # Auto-detect may fail on some VISA stacks (e.g., VI_ERROR_ALLOC).
+                    # Fallback to direct driver creation to avoid a hard failure.
+                    if resolved_type == "auto":
                         logger.warning(
-                            f"Single-channel instrument rejected channel {channel}; "
-                            "retrying connection on channel 1 with shared resource semantics."
+                            f"Auto-detect failed ({first_err}). "
+                            "Falling back to explicit SMU driver attempts."
                         )
-                        actual_channel = 1
-                        new_ctrl = create_smu_from_string(
-                            smu_type_str=target_type,
-                            address=address,
-                            channel=actual_channel,
-                            mock=mock,
-                            name=f"SMU_{actual_channel}",
-                            existing_resource=existing_res
-                        )
+                        fallback_types = ["keysight_b2902", "keysight_b2901", "keithley_2400"]
+                        last_err = first_err
+                        new_ctrl = None
+                        for cand in fallback_types:
+                            try:
+                                new_ctrl = create_smu_from_string(
+                                    smu_type_str=cand,
+                                    address=address,
+                                    channel=actual_channel,
+                                    mock=mock,
+                                    name=f"SMU_{actual_channel}",
+                                    existing_resource=existing_res
+                                )
+                                resolved_type = cand
+                                logger.info(f"Fallback driver selected: {cand}")
+                                break
+                            except Exception as cand_err:
+                                last_err = cand_err
+                        if new_ctrl is None:
+                            raise last_err
                     else:
-                        raise
+                        msg = str(first_err).lower()
+                        if channel != 1 and "single-channel" in msg:
+                            logger.warning(
+                                f"Single-channel instrument rejected channel {channel}; "
+                                "retrying connection on channel 1 with shared resource semantics."
+                            )
+                            actual_channel = 1
+                            new_ctrl = create_smu_from_string(
+                                smu_type_str=resolved_type,
+                                address=address,
+                                channel=actual_channel,
+                                mock=mock,
+                                name=f"SMU_{actual_channel}",
+                                existing_resource=existing_res
+                            )
+                        else:
+                            raise
+
+                if channel != actual_channel:
+                    logger.info(f"Connect request channel remapped {channel} -> {actual_channel}")
                 
                 # If adding second channel to known B2902, don't reset
                 if not is_first and (smu_type == "keysight_b2902" or new_ctrl.get_smu_type() == "keysight_b2902"):
                      if hasattr(new_ctrl, 'reset_on_connect'):
                         new_ctrl.reset_on_connect = False
                 
-                new_ctrl.connect()
+                try:
+                    new_ctrl.connect()
+                except Exception as conn_err:
+                    msg = str(conn_err).lower()
+                    if channel != 1 and "single-channel" in msg:
+                        logger.warning(
+                            f"Connection reported single-channel limitation on requested channel {channel}; "
+                            "retrying on channel 1."
+                        )
+                        actual_channel = 1
+                        new_ctrl = create_smu_from_string(
+                            smu_type_str=resolved_type if resolved_type != "auto" else "keysight_b2901",
+                            address=address,
+                            channel=actual_channel,
+                            mock=mock,
+                            name=f"SMU_{actual_channel}",
+                            existing_resource=existing_res
+                        )
+                        if not is_first and hasattr(new_ctrl, 'reset_on_connect'):
+                            new_ctrl.reset_on_connect = False
+                        new_ctrl.connect()
+                    else:
+                        raise
                 
                 if new_ctrl.state == InstrumentState.ERROR:
                     return {"success": False, "message": "Connection resulted in ERROR state"}

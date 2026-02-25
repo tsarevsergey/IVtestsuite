@@ -42,6 +42,7 @@ def _detect_smu_type(address: str) -> SMUType:
         raise RuntimeError("PyVISA not installed, cannot auto-detect SMU type")
     
     rm = pyvisa.ResourceManager()
+    resource = None
     try:
         resource = rm.open_resource(address, open_timeout=10000)
         resource.timeout = 10000
@@ -53,6 +54,7 @@ def _detect_smu_type(address: str) -> SMUType:
         
         idn = resource.query("*IDN?").strip()
         resource.close()
+        resource = None
         
         logger.info(f"SMU identification: {idn}")
         
@@ -85,6 +87,11 @@ def _detect_smu_type(address: str) -> SMUType:
     except Exception as e:
         raise RuntimeError(f"Failed to auto-detect SMU type: {e}")
     finally:
+        if resource is not None:
+            try:
+                resource.close()
+            except Exception:
+                pass
         rm.close()
 
 
