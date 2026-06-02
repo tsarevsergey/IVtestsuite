@@ -218,6 +218,7 @@
             '#00d4ff', '#00ff66', '#ff9900', '#ff4444', '#aa66ff',
             '#4488ff', '#ff66aa', '#66ffaa', '#ffff66', '#66aaff'
         ];
+        const LOG_FLOOR = 1e-12;
 
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
@@ -409,6 +410,10 @@
                 else if (yAxis === 'current') yData = data.current;
                 else yData = data.current.map(v => Math.abs(v));
 
+                if (yScale === 'log') {
+                    yData = yData.map(v => Math.max(LOG_FLOOR, Math.abs(v)));
+                }
+
                 datasets.push({
                     label: name,
                     data: xData.map((x, i) => ({ x, y: yData[i] })),
@@ -424,8 +429,11 @@
 
             // Update axis labels
             const xLabel = xAxis === 'voltage' ? 'Voltage (V)' : 'Current (A)';
-            const yLabel = yAxis === 'voltage' ? 'Voltage (V)' :
+            let yLabel = yAxis === 'voltage' ? 'Voltage (V)' :
                 yAxis === 'abs_current' ? '|Current| (A)' : 'Current (A)';
+            if (yScale === 'log') {
+                yLabel = yAxis === 'voltage' ? '|Voltage| (V)' : '|Current| (A)';
+            }
             ivChart.options.scales.x.title.text = xLabel;
             ivChart.options.scales.y.title.text = yLabel;
             ivChart.options.scales.y.type = yScale === 'log' ? 'logarithmic' : 'linear';
@@ -452,36 +460,54 @@
                 '<tr><td colspan="5" class="text-muted text-center">No data</td></tr>';
         }
 
-        // Calculate solar cell stats
+        function interpolateAtZero(xValues, yValues, fallbackToClosest = false) {
+            let closestY = 0;
+            let closestDistance = Infinity;
+
+            for (let i = 0; i < xValues.length; i++) {
+                const x = Number(xValues[i]);
+                const y = Number(yValues[i]);
+                if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+
+                if (Math.abs(x) < closestDistance) {
+                    closestDistance = Math.abs(x);
+                    closestY = y;
+                }
+                if (x === 0) return y;
+
+                if (i > 0) {
+                    const previousX = Number(xValues[i - 1]);
+                    const previousY = Number(yValues[i - 1]);
+                    if (!Number.isFinite(previousX) || !Number.isFinite(previousY)) continue;
+
+                    if (previousX * x < 0) {
+                        return previousY + (y - previousY) * (-previousX) / (x - previousX);
+                    }
+                }
+            }
+
+            return fallbackToClosest && closestDistance < Infinity ? closestY : 0;
+        }
+
+        // Calculate solar cell stats within the power-producing interval.
         function calculateStats(voltage, current) {
-            // Find Isc (current at V=0)
-            let isc = current[0];
-            for (let i = 0; i < voltage.length; i++) {
-                if (Math.abs(voltage[i]) < Math.abs(voltage[0])) {
-                    isc = current[i];
-                }
-            }
+            const isc = interpolateAtZero(voltage, current, true);
+            const voc = interpolateAtZero(current, voltage);
+            const minVoltage = Math.min(0, voc);
+            const maxVoltage = Math.max(0, voc);
 
-            // Find Voc (voltage at I=0)
-            let voc = 0;
-            for (let i = 0; i < current.length - 1; i++) {
-                if (current[i] * current[i + 1] < 0) {
-                    // Linear interpolation
-                    const slope = (voltage[i + 1] - voltage[i]) / (current[i + 1] - current[i]);
-                    voc = voltage[i] - current[i] * slope;
-                    break;
-                }
-            }
-
-            // Find Pmax
             let pmax = 0;
             for (let i = 0; i < voltage.length; i++) {
-                const power = Math.abs(voltage[i] * current[i]);
-                if (power > pmax) pmax = power;
+                const v = Number(voltage[i]);
+                const c = Number(current[i]);
+                if (!Number.isFinite(v) || !Number.isFinite(c)) continue;
+                if (v < minVoltage || v > maxVoltage) continue;
+
+                pmax = Math.max(pmax, Math.abs(v * c));
             }
 
-            // Calculate FF
-            const ff = Math.abs(isc * voc) > 0 ? pmax / Math.abs(isc * voc) : 0;
+            const denominator = Math.abs(isc * voc);
+            const ff = denominator > 0 ? pmax / denominator : 0;
 
             return { isc: Math.abs(isc), voc, pmax, ff };
         }

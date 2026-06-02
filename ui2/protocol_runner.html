@@ -935,15 +935,133 @@
         let lastSavedFile = null;
         let activityLog = [];
 
+        const RUNNER_SETTINGS_FIELDS = [
+            'mockOverride',
+            'fnameFind',
+            'fnameReplace',
+            'fnameGlobal',
+            'dataFolder',
+            'pixelOverride',
+            'lightMode',
+            'filenameLightColor',
+            'lightCurrent',
+            'calFile',
+            'targetIrr'
+        ];
+
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             initCharts();
-            loadProtocolsList();
-            loadCalibrationFiles();
+            const settings = restoreRunnerSettings();
+            bindRunnerSettingsPersistence();
 
             const user = UI2.getCurrentUser();
-            if (user) document.getElementById('dataFolder').value = `./data/${user}`;
+            if (!hasStoredField(settings, 'dataFolder') && user) {
+                document.getElementById('dataFolder').value = `./data/${user}`;
+            }
+
+            loadProtocolsList();
+            loadCalibrationFiles();
         });
+
+        function getRunnerSettingsKey() {
+            return `smu_protocol_runner_settings:${UI2.getCurrentUser() || 'guest'}`;
+        }
+
+        function loadRunnerSettings() {
+            try {
+                return JSON.parse(localStorage.getItem(getRunnerSettingsKey()) || '{}');
+            } catch (error) {
+                console.warn('Could not load Protocol Runner settings:', error);
+                return {};
+            }
+        }
+
+        function hasStoredField(settings, id) {
+            return Object.prototype.hasOwnProperty.call(settings.fields || {}, id);
+        }
+
+        function saveRunnerSettings() {
+            const previous = loadRunnerSettings();
+            const settings = {
+                fields: {},
+                fnameMode,
+                setupCollapsed: document.getElementById('setupSection').classList.contains('collapsed'),
+                selectedProtocolId: selectedProtocol?.id || previous.selectedProtocolId || null,
+                protocolOverrides: previous.protocolOverrides || {}
+            };
+
+            RUNNER_SETTINGS_FIELDS.forEach(id => {
+                const element = document.getElementById(id);
+                if (!element) return;
+                settings.fields[id] = element.type === 'checkbox' ? element.checked : element.value;
+            });
+
+            if (selectedProtocol?.id) {
+                settings.protocolOverrides[selectedProtocol.id] = {
+                    params: Object.fromEntries(
+                        [...document.querySelectorAll('.param-override-val')]
+                            .map(input => [input.getAttribute('data-key'), input.value])
+                    ),
+                    loops: Object.fromEntries(
+                        [...document.querySelectorAll('.loop-override-val')]
+                            .map(input => [input.getAttribute('data-loop-idx'), input.value])
+                    )
+                };
+            }
+
+            try {
+                localStorage.setItem(getRunnerSettingsKey(), JSON.stringify(settings));
+            } catch (error) {
+                console.warn('Could not save Protocol Runner settings:', error);
+            }
+        }
+
+        function restoreRunnerSettings() {
+            const settings = loadRunnerSettings();
+            RUNNER_SETTINGS_FIELDS.forEach(id => {
+                if (!hasStoredField(settings, id)) return;
+                const element = document.getElementById(id);
+                if (!element) return;
+                if (element.type === 'checkbox') element.checked = settings.fields[id] === true;
+                else element.value = settings.fields[id];
+            });
+
+            setFnameMode(settings.fnameMode || 'fnr', false);
+
+            const section = document.getElementById('setupSection');
+            const collapsed = settings.setupCollapsed !== false;
+            section.classList.toggle('collapsed', collapsed);
+            document.getElementById('setupToggleIcon').textContent = collapsed ? '\u25b6' : '\u25bc';
+
+            toggleLightMode(false);
+            return settings;
+        }
+
+        function restoreProtocolOverrideInputs() {
+            if (!selectedProtocol?.id) return;
+            const overrides = loadRunnerSettings().protocolOverrides?.[selectedProtocol.id];
+            if (!overrides) return;
+
+            document.querySelectorAll('.param-override-val').forEach(input => {
+                const key = input.getAttribute('data-key');
+                if (Object.prototype.hasOwnProperty.call(overrides.params || {}, key)) {
+                    input.value = overrides.params[key];
+                }
+            });
+            document.querySelectorAll('.loop-override-val').forEach(input => {
+                const key = input.getAttribute('data-loop-idx');
+                if (Object.prototype.hasOwnProperty.call(overrides.loops || {}, key)) {
+                    input.value = overrides.loops[key];
+                }
+            });
+        }
+
+        function bindRunnerSettingsPersistence() {
+            const setup = document.getElementById('setupContent');
+            setup.addEventListener('input', saveRunnerSettings);
+            setup.addEventListener('change', saveRunnerSettings);
+        }
 
         // --- Protocol Loading ---
         async function loadProtocolsList() {
@@ -953,6 +1071,10 @@
             if (res && res.protocols) {
                 allProtocols = res.protocols;
                 renderProtocolList();
+                const selectedId = loadRunnerSettings().selectedProtocolId;
+                if (selectedId && allProtocols.some(protocol => protocol.id === selectedId)) {
+                    selectProtocol(selectedId);
+                }
             }
         }
 
@@ -999,14 +1121,17 @@
                 renderDynamicLoops(loops);
                 renderDynamicParams(selectedYaml.parameters || {});
 
-                // Pre-fill pixel override if found
-                if (selectedYaml.parameters && selectedYaml.parameters.pixel_id) {
+                const settings = loadRunnerSettings();
+                // Pre-fill protocol metadata only when no manual value was stored.
+                if (!hasStoredField(settings, 'pixelOverride') && selectedYaml.parameters?.pixel_id) {
                     document.getElementById('pixelOverride').value = selectedYaml.parameters.pixel_id;
-                } else {
-                    document.getElementById('pixelOverride').value = "";
                 }
-                document.getElementById('filenameLightColor').value =
-                    selectedYaml.parameters?.light_color === 'none' ? '' : (selectedYaml.parameters?.light_color || '');
+                if (!hasStoredField(settings, 'filenameLightColor') && selectedYaml.parameters?.light_color) {
+                    document.getElementById('filenameLightColor').value =
+                        selectedYaml.parameters.light_color === 'none' ? '' : selectedYaml.parameters.light_color;
+                }
+                restoreProtocolOverrideInputs();
+                saveRunnerSettings();
 
                 document.getElementById('btnVisualize').disabled = false;
 
@@ -1045,6 +1170,7 @@
                            value="${val}">
                 </div>
             `}).join('');
+            restoreProtocolOverrideInputs();
         }
 
         function renderDynamicParams(params) {
@@ -1063,6 +1189,7 @@
                            value="${params[key]}">
                 </div>
             `).join('');
+            restoreProtocolOverrideInputs();
         }
 
         function getLoopPurpose(loop) {
@@ -1091,19 +1218,21 @@
             const section = document.getElementById('setupSection');
             const icon = document.getElementById('setupToggleIcon');
             section.classList.toggle('collapsed');
+            saveRunnerSettings();
             icon.textContent = section.classList.contains('collapsed') ? '▶' : '▼';
         }
 
         // --- Overrides Logic ---
-        function setFnameMode(mode) {
+        function setFnameMode(mode, persist = true) {
             fnameMode = mode;
             document.getElementById('modeFNR').classList.toggle('active', mode === 'fnr');
             document.getElementById('modeLiteral').classList.toggle('active', mode === 'literal');
             document.getElementById('fnrFields').classList.toggle('hidden', mode !== 'fnr');
             document.getElementById('literalFields').classList.toggle('hidden', mode !== 'literal');
+            if (persist) saveRunnerSettings();
         }
 
-        function toggleLightMode() {
+        function toggleLightMode(persist = true) {
             const mode = document.getElementById('lightMode').value;
             document.getElementById('lightCurrentGroup').classList.toggle('hidden', mode !== 'current');
             document.getElementById('lightIrradianceGroup').classList.toggle('hidden', mode !== 'irradiance');
@@ -1111,12 +1240,16 @@
             // If we have an intensity loop, maybe we want to hide the single target input
             const hasIntensityLoop = !!document.querySelector('.loop-override-val[data-variable="intensity_val"]');
             document.getElementById('targetIrrWrap').classList.toggle('hidden', mode === 'irradiance' && hasIntensityLoop);
+            if (mode === 'irradiance' && calData) calculateCurrent();
+            if (persist) saveRunnerSettings();
         }
 
         async function loadCalibrationFiles() {
             const files = await UI2.getCalibrationFiles();
             const select = document.getElementById('calFile');
             select.innerHTML = files.map(f => `<option value="${f}">${f}</option>`).join('');
+            const savedFile = loadRunnerSettings().fields?.calFile;
+            if (savedFile && files.includes(savedFile)) select.value = savedFile;
             if (files.length > 0) loadCalData();
         }
 
@@ -1125,7 +1258,10 @@
             const res = await UI2.getCalibrationData(file);
             if (res.success) {
                 calData = res;
-                calculateCurrent();
+                if (document.getElementById('lightMode').value === 'irradiance') {
+                    calculateCurrent();
+                }
+                saveRunnerSettings();
             }
         }
 
@@ -1147,6 +1283,7 @@
 
             const current = interpolate(target, calData.irradiances, calData.currents);
             document.getElementById('lightCurrent').value = current.toFixed(8);
+            saveRunnerSettings();
             document.getElementById('calResult').textContent = `→ ${current.toFixed(8)} A (${calData.format})`;
         }
 
