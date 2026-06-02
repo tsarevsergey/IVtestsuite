@@ -31,6 +31,7 @@ class RunInlineRequest(BaseModel):
     steps: List[Dict[str, Any]] = Field(..., description="Protocol steps")
     name: str = Field(default="inline", description="Protocol name for logging")
     skip_cleanup: bool = Field(default=False, description="Skip safety cleanup (keep outputs on)")
+    skip_relay_cleanup: bool = Field(default=False, description="Turn SMU outputs off without touching relay boards")
 
 
 class SaveProtocolRequest(BaseModel):
@@ -192,7 +193,7 @@ async def run_protocol(request: RunProtocolRequest, background_tasks: Background
         proto = protocol_loader.load(request.name)
         
         # Start in background
-        background_tasks.add_task(protocol_engine.run, proto.steps)
+        background_tasks.add_task(protocol_engine.run, proto.steps, False, proto.skip_relay_cleanup)
         
         return ProtocolResponse(
             success=True,
@@ -222,10 +223,19 @@ async def run_inline_protocol(request: RunInlineRequest, background_tasks: Backg
     """
     Start an inline protocol in the background.
     """
-    logger.info(f"Starting inline protocol: {request.name} ({len(request.steps)} steps, skip_cleanup={request.skip_cleanup})")
+    logger.info(
+        f"Starting inline protocol: {request.name} "
+        f"({len(request.steps)} steps, skip_cleanup={request.skip_cleanup}, "
+        f"skip_relay_cleanup={request.skip_relay_cleanup})"
+    )
     
     try:
-        background_tasks.add_task(protocol_engine.run, request.steps, request.skip_cleanup)
+        background_tasks.add_task(
+            protocol_engine.run,
+            request.steps,
+            request.skip_cleanup,
+            request.skip_relay_cleanup
+        )
         
         return ProtocolResponse(
             success=True,
@@ -302,7 +312,9 @@ async def get_protocol(protocol_id: str):
                 "name": proto.name,
                 "description": proto.description,
                 "version": proto.version,
-                "steps": proto.steps
+                "steps": proto.steps,
+                "parameters": proto.parameters,
+                "skip_relay_cleanup": proto.skip_relay_cleanup
             }
         }
     except Exception as e:

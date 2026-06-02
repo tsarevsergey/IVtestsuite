@@ -88,13 +88,19 @@ class ProtocolEngine:
             "control/loop": self._action_control_loop,
         }
     
-    def run(self, steps: List[Dict[str, Any]], skip_cleanup: bool = False) -> ProtocolResult:
+    def run(
+        self,
+        steps: List[Dict[str, Any]],
+        skip_cleanup: bool = False,
+        skip_relay_cleanup: bool = False
+    ) -> ProtocolResult:
         """
         Execute a list of protocol steps.
         
         Args:
             steps: List of step dicts with 'action', 'params', optional 'capture_as'
             skip_cleanup: If True, skip the safety cleanup at end of run
+            skip_relay_cleanup: If True, turn SMU outputs off without touching relay boards
         
         Returns:
             ProtocolResult with execution details
@@ -185,7 +191,7 @@ class ProtocolEngine:
         finally:
             self._running = False
             if not skip_cleanup:
-                self._perform_safety_cleanup()
+                self._perform_safety_cleanup(skip_relay_cleanup=skip_relay_cleanup)
             else:
                 logger.info("Safety cleanup skipped (requested).")
             
@@ -778,7 +784,7 @@ class ProtocolEngine:
         with self._data_lock:
             return copy.deepcopy(self._captured)
 
-    def _perform_safety_cleanup(self):
+    def _perform_safety_cleanup(self, skip_relay_cleanup: bool = False):
         """
         Guaranteed safety routine to ensure hardware is in a safe state.
         Called at the end of every protocol run.
@@ -790,11 +796,14 @@ class ProtocolEngine:
         except Exception as e:
             logger.error(f"Safety cleanup (SMU) failed: {e}")
             
-        try:
-            # 2. Open all relays
-            self._action_relays_all_off({})
-        except Exception as e:
-            logger.error(f"Safety cleanup (Relays) failed: {e}")
+        if skip_relay_cleanup:
+            logger.info("Safety cleanup: relay boards intentionally left untouched.")
+        else:
+            try:
+                # 2. Open all relays
+                self._action_relays_all_off({})
+            except Exception as e:
+                logger.error(f"Safety cleanup (Relays) failed: {e}")
             
         logger.info("Safety cleanup complete.")
 

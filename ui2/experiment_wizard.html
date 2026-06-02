@@ -129,6 +129,14 @@
                         <h3>Light → Dark (Batch)</h3>
                         <p>Measure all pixels under illumination, then all pixels in dark.</p>
                     </div>
+                    <div class="template-card" onclick="selectTemplate('single_pixel_dark_light')">
+                        <h3>Single Pixel Dark to Light (No Switches)</h3>
+                        <p>Measure one hardware-connected pixel without pixel or LED relay switching.</p>
+                    </div>
+                    <div class="template-card" onclick="selectTemplate('single_pixel_light_dark')">
+                        <h3>Single Pixel Light to Dark (No Switches)</h3>
+                        <p>Measure one hardware-connected pixel without pixel or LED relay switching.</p>
+                    </div>
                     <div class="template-card" onclick="selectTemplate('iv_intensity')">
                         <h3>IV-Intensity Sweep</h3>
                         <p>Measure 1 pixel across multiple illumination intensities.</p>
@@ -159,7 +167,7 @@
                                 <label>Sample Name</label>
                                 <input type="text" id="sample_name" value="TEST">
                             </div>
-                            <div class="form-group">
+                            <div class="form-group" id="pixelField">
                                 <label>Pixels (1-6, 8)</label>
                                 <input type="text" id="pixel_str" value="1-6">
                             </div>
@@ -214,7 +222,7 @@
                         <!-- Batch specific fields -->
                         <div id="batchFields" class="hidden">
                             <div class="group-title">⏱️ Batch Timing</div>
-                            <div class="form-group">
+                            <div class="form-group" id="pixelWaitField">
                                 <label>Pixel Wait Time (s)</label>
                                 <input type="number" id="wait_time" value="0.5" step="0.1">
                             </div>
@@ -443,6 +451,8 @@
             'multipixel_iv': 'Perform a standard IV sweep on a series of pixels sequentially. Each pixel is connected via relay, swept, and the data is saved.',
             'dark_light_batch': 'Batch operation: Firstly scans ALL specified pixels in the dark, then scans ALL pixels again with the light source ON.',
             'light_dark_batch': 'Batch operation: Firstly scans ALL specified pixels with the light source ON, then scans ALL pixels again in the dark.',
+            'single_pixel_dark_light': 'Single hardware-connected pixel: scan in the dark, then under illumination. Pixel and LED relay boards are not used. The light channel directly powers the connected LED.',
+            'single_pixel_light_dark': 'Single hardware-connected pixel: scan under illumination, then in the dark. Pixel and LED relay boards are not used. The light channel directly powers the connected LED.',
             'iv_intensity': 'Detailed characterization: Starts with a dark IV on the selected pixel, then sweeps illumination intensity (current or irradiance) and measures IV at each step.'
         };
 
@@ -461,7 +471,9 @@
                 'multipixel_iv': 0,
                 'dark_light_batch': 1,
                 'light_dark_batch': 2,
-                'iv_intensity': 3
+                'single_pixel_dark_light': 3,
+                'single_pixel_light_dark': 4,
+                'iv_intensity': 5
             };
             document.querySelectorAll('.template-card')[idxMap[id]].classList.add('active');
 
@@ -470,10 +482,17 @@
             // Toggle visibility of fields
             const isBatch = id !== 'multipixel_iv';
             const isIntensity = id === 'iv_intensity';
+            const isNoSwitch = id === 'single_pixel_dark_light' || id === 'single_pixel_light_dark';
 
             document.getElementById('batchFields').classList.toggle('hidden', !isBatch);
             document.getElementById('lightHwFields').classList.toggle('hidden', !isBatch);
             document.getElementById('lightSourceSection').classList.toggle('hidden', !isBatch);
+            document.getElementById('pixelField').classList.toggle('hidden', isNoSwitch);
+            document.getElementById('pixelWaitField').classList.toggle('hidden', isNoSwitch);
+
+            const ledWavelength = document.getElementById('led_wavelength');
+            ledWavelength.disabled = isNoSwitch;
+            if (isNoSwitch) ledWavelength.value = '0';
 
             // Intensity specific toggles
             document.getElementById('intensitySweepGroup').classList.toggle('hidden', !isIntensity);
@@ -626,6 +645,8 @@
                 generatedYaml = generateMultipixelIV(p, pixels);
             } else if (currentTemplate === 'iv_intensity') {
                 generatedYaml = generateIntensitySweep(p, pixels);
+            } else if (currentTemplate === 'single_pixel_dark_light' || currentTemplate === 'single_pixel_light_dark') {
+                generatedYaml = generateSinglePixelSweep(p, currentTemplate === 'single_pixel_dark_light' ? 'dark_first' : 'light_first');
             } else {
                 generatedYaml = generateBatchSweep(p, pixels, currentTemplate === 'dark_light_batch' ? 'dark_first' : 'light_first');
             }
@@ -893,6 +914,93 @@
                 name: p.protocol_name,
                 description: `Batch sweep on pixels ${p.pixel_str}. ${order}.`,
                 version: 2.0,
+                steps: steps
+            };
+        }
+
+        function generateSinglePixelSweep(p, order) {
+            const darkFirst = order === 'dark_first';
+
+            const makeMeasurementSteps = (isLight, isLast) => {
+                const mode = isLight ? 'light' : 'dark';
+                const holdV = isLight ? p.light_hold_v : p.dark_hold_v;
+                const steps = [];
+
+                if (p.enable_steady_state) {
+                    const points = Math.max(1, Math.floor(p.steady_time / p.steady_delay));
+                    steps.push({ action: 'smu/configure', params: { channel: p.sweep_channel, compliance: p.sweep_compliance, compliance_type: p.sweep_compliance_type, nplc: p.nplc } });
+                    steps.push({ action: 'smu/source-mode', params: { channel: p.sweep_channel, mode: p.sweep_mode } });
+                    steps.push({
+                        action: 'smu/sweep',
+                        params: {
+                            channel: p.sweep_channel, start: holdV, stop: holdV, points: points,
+                            delay: p.steady_delay, sweep_type: 'single', keep_output_on: true
+                        },
+                        capture_as: `${mode}_steady_data`
+                    });
+                    steps.push({
+                        action: 'data/save',
+                        params: { data: `$${mode}_steady_data`, filename: `${p.sample_name}_steady_${holdV}V_${mode}` }
+                    });
+                }
+
+                steps.push({ action: 'smu/configure', params: { channel: p.sweep_channel, compliance: p.sweep_compliance, compliance_type: p.sweep_compliance_type, nplc: p.nplc } });
+                steps.push({ action: 'smu/source-mode', params: { channel: p.sweep_channel, mode: p.sweep_mode } });
+                steps.push({
+                    action: 'smu/sweep',
+                    params: {
+                        channel: p.sweep_channel, start: p.start_v, stop: p.stop_v, points: p.points,
+                        delay: p.delay, sweep_type: p.sweep_type, direction: p.direction,
+                        keep_output_on: isLast ? p.keep_output_on : false
+                    },
+                    capture_as: `${mode}_iv_data`
+                });
+                steps.push({
+                    action: 'data/save',
+                    params: { data: `$${mode}_iv_data`, filename: `${p.sample_name}_${mode.toUpperCase()}` }
+                });
+
+                return steps;
+            };
+
+            const blockDark = [
+                { action: 'smu/output', params: { channel: p.light_channel, enabled: false } },
+                { action: 'wait', params: { seconds: 1.0 } }
+            ];
+
+            const blockLight = [
+                { action: 'smu/configure', params: { channel: p.light_channel, compliance: p.bias_compliance, compliance_type: p.bias_compliance_type, nplc: p.nplc } },
+                { action: 'smu/source-mode', params: { channel: p.light_channel, mode: p.bias_mode } },
+                { action: 'smu/set', params: { channel: p.light_channel, value: p.light_current } },
+                { action: 'smu/output', params: { channel: p.light_channel, enabled: true } },
+                { action: 'wait', params: { seconds: 2.0 } }
+            ];
+
+            const steps = [
+                { action: 'smu/connect', params: { channel: 1, mock: false } },
+                { action: 'smu/connect', params: { channel: 2, mock: false } }
+            ];
+
+            if (darkFirst) {
+                steps.push(...blockDark, ...makeMeasurementSteps(false, false), ...blockLight, ...makeMeasurementSteps(true, true));
+            } else {
+                steps.push(...blockLight, ...makeMeasurementSteps(true, false), ...blockDark, ...makeMeasurementSteps(false, true));
+            }
+
+            steps.push(
+                { action: 'smu/output', params: { channel: p.sweep_channel, enabled: false } },
+                { action: 'smu/output', params: { channel: p.light_channel, enabled: false } }
+            );
+
+            return {
+                name: p.protocol_name,
+                description: `Single hardware-connected pixel sweep. ${order}. No pixel or LED relay switching.`,
+                version: 1.0,
+                skip_relay_cleanup: true,
+                parameters: {
+                    hardware_switching: 'none',
+                    led_wavelength: 'none'
+                },
                 steps: steps
             };
         }

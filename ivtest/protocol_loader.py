@@ -7,7 +7,7 @@ Protocols are stored in the ./protocols/ directory.
 import os
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import yaml
 
 from .logging_config import get_logger
@@ -26,6 +26,8 @@ class ProtocolDefinition:
     version: str
     steps: List[Dict[str, Any]]
     filepath: str
+    parameters: Dict[str, Any] = field(default_factory=dict)
+    skip_relay_cleanup: bool = False
 
 
 class ProtocolLoader:
@@ -123,7 +125,9 @@ class ProtocolLoader:
             description=data.get("description", ""),
             version=str(data.get("version", "1.0")),
             steps=data["steps"],
-            filepath=str(filepath)
+            filepath=str(filepath),
+            parameters=data.get("parameters", {}),
+            skip_relay_cleanup=bool(data.get("skip_relay_cleanup", False))
         )
         
         self._cache[name] = proto
