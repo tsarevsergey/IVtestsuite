@@ -179,6 +179,10 @@ async function createUser(name) {
     return await api('POST', '/protocol/create-user', { name });
 }
 
+async function deleteProtocol(protocolId) {
+    return await api('POST', '/protocol/delete', { protocol_id: protocolId });
+}
+
 async function getCalibrationFiles() {
     const res = await api('GET', '/protocol/calibration-files');
     return res.files || [];
@@ -217,6 +221,7 @@ window.UI2 = {
     setCurrentUser,
     getUsers,
     createUser,
+    deleteProtocol,
     getCalibrationFiles,
     getCalibrationData
 };

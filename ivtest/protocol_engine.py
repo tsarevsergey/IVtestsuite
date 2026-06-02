@@ -105,6 +105,7 @@ class ProtocolEngine:
         Returns:
             ProtocolResult with execution details
         """
+        skip_relay_cleanup = skip_relay_cleanup or not self._steps_use_relays(steps)
         self._running = True
         with self._data_lock:
             self._captured = {}
@@ -198,6 +199,15 @@ class ProtocolEngine:
             # Automatically return to IDLE if we were the ones who started it
             # This is safe because RunManager.complete() only transitions if currently RUNNING
             run_manager.complete()
+
+    def _steps_use_relays(self, steps: List[Dict[str, Any]]) -> bool:
+        """Return True when a protocol contains any relay action."""
+        for step in steps:
+            if step.get("action", "").startswith("relays/"):
+                return True
+            if self._steps_use_relays(step.get("steps", [])):
+                return True
+        return False
     
     def _execute_step(self, index: int, step: Dict[str, Any]) -> StepResult:
         """Execute a single protocol step."""

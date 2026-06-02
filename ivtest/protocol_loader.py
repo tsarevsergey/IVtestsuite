@@ -38,6 +38,20 @@ class ProtocolLoader:
     def __init__(self, protocols_dir: Path = PROTOCOLS_DIR):
         self.protocols_dir = Path(protocols_dir)
         self._cache: Dict[str, ProtocolDefinition] = {}
+
+    def _resolve_protocol_path(self, name: str) -> Path:
+        """Resolve a protocol ID to a YAML file within the protocols directory."""
+        if not name:
+            raise ValueError("Protocol name cannot be empty")
+
+        root = self.protocols_dir.resolve()
+        filepath = (root / f"{name}.yaml").resolve()
+        try:
+            filepath.relative_to(root)
+        except ValueError:
+            raise ValueError("Protocol path must stay within the protocols directory")
+
+        return filepath
     
     def list_protocols(self) -> List[Dict[str, str]]:
         """
@@ -96,7 +110,7 @@ class ProtocolLoader:
         if name in self._cache:
             return self._cache[name]
         
-        filepath = self.protocols_dir / f"{name}.yaml"
+        filepath = self._resolve_protocol_path(name)
         if not filepath.exists():
             raise FileNotFoundError(f"Protocol not found: {name}")
         
@@ -153,11 +167,10 @@ class ProtocolLoader:
         Returns:
             Absolute path to the saved file
         """
-        target_dir = self.protocols_dir / folder
+        filepath = self._resolve_protocol_path(str(Path(folder) / name))
+        target_dir = filepath.parent
         if not target_dir.exists():
             target_dir.mkdir(parents=True, exist_ok=True)
-            
-        filepath = target_dir / f"{name}.yaml"
         
         with open(filepath, "w", encoding="utf-8") as f:
             yaml.dump(data, f, sort_keys=False, default_flow_style=False)
@@ -168,6 +181,20 @@ class ProtocolLoader:
             del self._cache[rel_name]
             
         logger.info(f"Saved protocol: {rel_name} to {filepath}")
+        return str(filepath)
+
+    async def delete(self, name: str) -> str:
+        """Delete a protocol YAML file and invalidate its cache entry."""
+        filepath = self._resolve_protocol_path(name)
+        if not filepath.exists():
+            raise FileNotFoundError(f"Protocol not found: {name}")
+        if not filepath.is_file():
+            raise ValueError(f"Protocol is not a file: {name}")
+
+        filepath.unlink()
+        self._cache.pop(name, None)
+
+        logger.info(f"Deleted protocol: {name} from {filepath}")
         return str(filepath)
 
     def clear_cache(self):

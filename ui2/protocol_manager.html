@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Protocol Manager - UI2</title>
+    <link rel="stylesheet" href="css/theme.css">
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <style>
+        .manager-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: end;
+            gap: 0.75rem;
+        }
+
+        .manager-toolbar .form-group {
+            min-width: 220px;
+            margin-bottom: 0;
+        }
+
+        .protocol-list {
+            display: grid;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .protocol-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+        }
+
+        .protocol-details {
+            min-width: 0;
+        }
+
+        .protocol-name {
+            color: var(--accent-cyan);
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .protocol-meta,
+        .empty-state {
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+        }
+
+        .protocol-description {
+            margin-top: 0.35rem;
+            font-size: 0.88rem;
+        }
+
+        .btn-danger {
+            flex: 0 0 auto;
+            background: rgba(239, 68, 68, 0.16);
+            border-color: rgba(239, 68, 68, 0.65);
+            color: #fecaca;
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.28);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="page-header">
+            <h1 class="page-title">Protocol Manager</h1>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title">Saved Protocols</div>
+            <p class="text-muted text-small mb-2">Review and delete completed protocols for a selected user.</p>
+
+            <div class="manager-toolbar">
+                <div class="form-group">
+                    <label for="managerUser">User</label>
+                    <select id="managerUser" onchange="renderProtocols()"></select>
+                </div>
+                <button class="btn btn-outline" onclick="loadProtocols()">Refresh</button>
+            </div>
+
+            <div id="protocolList" class="protocol-list"></div>
+        </div>
+    </div>
+
+    <script>
+        let protocols = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadUsers();
+            await loadProtocols();
+        });
+
+        async function loadUsers() {
+            const users = await UI2.getUsers();
+            const select = document.getElementById('managerUser');
+            const options = [...new Set(['Custom', ...users])];
+            const currentUser = UI2.getCurrentUser();
+
+            select.innerHTML = '';
+            options.forEach(user => select.add(new Option(user, user)));
+            select.value = options.includes(currentUser) ? currentUser : 'Custom';
+        }
+
+        async function loadProtocols() {
+            const result = await UI2.getProtocolList();
+            protocols = result.protocols || [];
+            renderProtocols();
+        }
+
+        function renderProtocols() {
+            const user = document.getElementById('managerUser').value;
+            const list = document.getElementById('protocolList');
+            const prefix = `${user}/`;
+            const userProtocols = protocols.filter(protocol => protocol.id.startsWith(prefix));
+
+            list.innerHTML = '';
+            if (userProtocols.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = `No saved protocols found for ${user}.`;
+                list.appendChild(empty);
+                return;
+            }
+
+            userProtocols.forEach(protocol => {
+                const card = document.createElement('div');
+                card.className = 'protocol-card';
+
+                const details = document.createElement('div');
+                details.className = 'protocol-details';
+
+                const name = document.createElement('div');
+                name.className = 'protocol-name';
+                name.textContent = protocol.name;
+
+                const meta = document.createElement('div');
+                meta.className = 'protocol-meta';
+                meta.textContent = `${protocol.id} | Version ${protocol.version}`;
+
+                const description = document.createElement('div');
+                description.className = 'protocol-description';
+                description.textContent = protocol.description || 'No description';
+
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'btn btn-danger';
+                remove.textContent = 'Delete';
+                remove.onclick = () => deleteProtocol(protocol);
+
+                details.append(name, meta, description);
+                card.append(details, remove);
+                list.appendChild(card);
+            });
+        }
+
+        async function deleteProtocol(protocol) {
+            if (!confirm(`Delete ${protocol.id}.yaml? This cannot be undone.`)) return;
+
+            const result = await UI2.deleteProtocol(protocol.id);
+            if (result.success === false) {
+                alert(`Delete failed: ${result.message}`);
+                return;
+            }
+
+            Utils.showToast(`Deleted ${protocol.id}.yaml`, 'success');
+            await loadProtocols();
+        }
+    </script>
+</body>
+
+</html>

@@ -425,9 +425,7 @@
                             </div>
                             <div class="form-group mb-0" style="flex: 1">
                                 <label class="text-small">Target User</label>
-                                <div id="userFolderDisplay" class="text-cyan font-bold p-1"
-                                    style="background: var(--bg-primary); border-radius: 4px; border: 1px solid var(--border-color);">
-                                    -</div>
+                                <select id="targetUser"></select>
                             </div>
                         </div>
                         <div class="btn-row-2 gap-1 mt-2">
@@ -460,9 +458,19 @@
         document.addEventListener('DOMContentLoaded', async () => {
             selectTemplate('multipixel_iv');
             loadCalibrationFiles();
-            const user = UI2.getCurrentUser();
-            document.getElementById('userFolderDisplay').textContent = user || 'Custom';
+            loadTargetUsers();
         });
+
+        async function loadTargetUsers() {
+            const users = await UI2.getUsers();
+            const select = document.getElementById('targetUser');
+            const options = [...new Set(['Custom', ...users])];
+            const currentUser = UI2.getCurrentUser();
+
+            select.innerHTML = '';
+            options.forEach(user => select.add(new Option(user, user)));
+            select.value = options.includes(currentUser) ? currentUser : 'Custom';
+        }
 
         function selectTemplate(id) {
             currentTemplate = id;
@@ -1007,7 +1015,7 @@
 
         async function confirmSave() {
             const filename = document.getElementById('finalFilename').value;
-            const user = UI2.getCurrentUser();
+            const user = document.getElementById('targetUser').value;
 
             if (!filename) {
                 alert("Please enter a filename");

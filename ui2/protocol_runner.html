@@ -728,7 +728,7 @@
                         <div class="form-group">
                             <label>Pixel Sequence (e.g. 1-6 or 1,2,8)</label>
                             <input type="text" id="pixelOverride" value="">
-                            <div class="text-tiny text-muted mt-1 italic">Targets all Pixel and Loop/Pixel actions.
+                            <div class="text-tiny text-muted mt-1 italic">Targets all Pixel and Loop/Pixel actions. For no-switch protocols, enter one pixel number to add it to saved filenames.
                             </div>
                         </div>
 
@@ -752,6 +752,16 @@
                                     <option value="current">Force Current (A)</option>
                                     <option value="irradiance">Force Irradiance (W/cm²)</option>
                                 </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Light Color (Filename Tag)</label>
+                                <select id="filenameLightColor">
+                                    <option value="">None</option>
+                                    <option value="R">Red (R)</option>
+                                    <option value="G">Green (G)</option>
+                                    <option value="B">Blue (B)</option>
+                                </select>
+                                <div class="text-tiny text-muted mt-1 italic">Adds an optional R, G, or B tag to no-switch saved filenames only.</div>
                             </div>
                         </div>
 
@@ -995,6 +1005,8 @@
                 } else {
                     document.getElementById('pixelOverride').value = "";
                 }
+                document.getElementById('filenameLightColor').value =
+                    selectedYaml.parameters?.light_color === 'none' ? '' : (selectedYaml.parameters?.light_color || '');
 
                 document.getElementById('btnVisualize').disabled = false;
 
@@ -1148,6 +1160,64 @@
             return found;
         }
 
+        function protocolUsesRelays(steps) {
+            return steps.some(step =>
+                step.action?.startsWith('relays/') ||
+                (step.steps && protocolUsesRelays(step.steps))
+            );
+        }
+
+        function isNoSwitchProtocol(yaml) {
+            if (yaml.parameters?.hardware_switching === 'none' || yaml.skip_relay_cleanup === true) {
+                return true;
+            }
+
+            const saveSteps = findSteps(yaml.steps, 'data/save');
+            const hasDarkLightFiles = saveSteps.some(step =>
+                typeof step.params?.filename === 'string' &&
+                /_(?:\d+[RGB]?|[RGB])?(DARK|LIGHT)$/i.test(step.params.filename)
+            );
+            return !protocolUsesRelays(yaml.steps) && hasDarkLightFiles;
+        }
+
+        function applyNoSwitchFilenameOverrides(yaml, pixelVal, lightColor) {
+            if (!isNoSwitchProtocol(yaml)) return true;
+
+            const pixel = pixelVal.trim();
+            if (pixel && !/^\d+$/.test(pixel)) {
+                alert('No-switch protocols accept one numeric pixel override for filenames.');
+                return false;
+            }
+
+            const color = lightColor.trim().toUpperCase();
+            if (color && !['R', 'G', 'B'].includes(color)) {
+                alert('Light color must be None, R, G, or B.');
+                return false;
+            }
+
+            const tag = `${pixel}${color}`;
+            if (!tag) return true;
+
+            findSteps(yaml.steps, 'data/save').forEach(step => {
+                const filename = step.params.filename;
+                if (typeof filename === 'string') {
+                    const updated = filename.replace(/_(?:\d+[RGB]?|[RGB])?(DARK|LIGHT)$/i, `_${tag}$1`);
+                    if (updated !== filename) {
+                        step.params.filename = updated;
+                        return;
+                    }
+
+                    const dataRef = step.params.data;
+                    const modeMatch = typeof dataRef === 'string' ? dataRef.match(/^\$(dark|light)_/i) : null;
+                    if (modeMatch) {
+                        step.params.filename = `${filename}_${tag}${modeMatch[1].toUpperCase()}`;
+                    }
+                }
+            });
+
+            return true;
+        }
+
         function findLoops(steps) {
             let found = [];
             for (let s of steps) {
@@ -1221,6 +1291,10 @@
             const user = UI2.getCurrentUser();
             const forceMock = document.getElementById('mockOverride').checked;
 
+            if (isNoSwitchProtocol(yaml)) {
+                yaml.skip_relay_cleanup = true;
+            }
+
             // Apply Overrides
             // 0. Global Mock Override
             if (forceMock) {
@@ -1289,6 +1363,9 @@
                     pixelLoops.forEach(l => l.params.sequence = seq);
                 }
             }
+
+            const lightColor = document.getElementById('filenameLightColor').value;
+            if (!applyNoSwitchFilenameOverrides(yaml, pixelVal, lightColor)) return;
 
             // 3. Global Parameter Overrides
             if (!yaml.parameters) yaml.parameters = {};

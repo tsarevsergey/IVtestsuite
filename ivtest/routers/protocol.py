@@ -46,6 +46,11 @@ class CreateUserRequest(BaseModel):
     name: str = Field(..., description="User name")
 
 
+class DeleteProtocolRequest(BaseModel):
+    """Request to delete a protocol YAML file."""
+    protocol_id: str = Field(..., description="Protocol ID relative to the protocols directory")
+
+
 class ProtocolStepInfo(BaseModel):
     """Information about a protocol step result."""
     step_index: int
@@ -98,7 +103,10 @@ async def list_users():
     if not PROTOCOLS_DIR.exists():
         return {"users": []}
     
-    users = [d.name for d in PROTOCOLS_DIR.iterdir() if d.is_dir() and not d.name.startswith(".")]
+    users = [
+        d.name for d in PROTOCOLS_DIR.iterdir()
+        if d.is_dir() and not d.name.startswith(".") and d.name.lower() != "ui"
+    ]
     return {"users": sorted(users)}
 
 
@@ -338,4 +346,21 @@ async def save_protocol(request: SaveProtocolRequest):
         }
     except Exception as e:
         logger.error(f"Failed to save protocol: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@router.post("/delete")
+async def delete_protocol(request: DeleteProtocolRequest):
+    """Delete an existing protocol YAML file."""
+    logger.info(f"Deleting protocol: {request.protocol_id}")
+
+    try:
+        filepath = await protocol_loader.delete(request.protocol_id)
+        return {
+            "success": True,
+            "message": f"Deleted protocol {request.protocol_id}",
+            "filepath": filepath
+        }
+    except Exception as e:
+        logger.error(f"Failed to delete protocol {request.protocol_id}: {e}")
         return {"success": False, "message": str(e)}
