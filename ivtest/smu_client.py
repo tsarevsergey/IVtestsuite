@@ -25,7 +25,7 @@ from .run_manager import run_manager, RunState
 logger = get_logger("smu_client")
 
 # Default SMU address - Updated for 2-channel B2902A
-DEFAULT_SMU_ADDRESS = "USB0::2391::35864::MY51141849::0::INSTR"
+DEFAULT_SMU_ADDRESS = "USB0::2391::35864::MY51141553::0::INSTR"
 SINGLE_CHANNEL_TYPES = {"keysight_b2901", "keithley_2400"}
 
 
