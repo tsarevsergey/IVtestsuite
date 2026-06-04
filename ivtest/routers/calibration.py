@@ -13,6 +13,7 @@ import time
 
 from ..smu_client import smu_client
 from ..logging_config import get_logger
+from ..calibration import DEFAULT_SI_RESPONSIVITY_FILE, load_si_responsivity_table, lookup_si_responsivity
 
 logger = get_logger("routers.calibration")
 router = APIRouter(prefix="/calibration", tags=["calibration"])
@@ -54,6 +55,49 @@ class CalibrationResponse(BaseModel):
     points: Optional[List[CalibrationPoint]] = None
     saved_file: Optional[str] = None
     error: Optional[str] = None
+
+
+class SiResponsivityResponse(BaseModel):
+    """Si diode responsivity lookup response."""
+    success: bool
+    wavelength_nm: Optional[float] = None
+    responsivity: Optional[float] = None
+    table: Optional[List[Dict[str, float]]] = None
+    source_file: Optional[str] = None
+    error: Optional[str] = None
+
+
+@router.get("/si-responsivity", response_model=SiResponsivityResponse)
+async def get_si_responsivity(wavelength_nm: Optional[float] = None):
+    """
+    Return Si diode responsivity data from SiDiodeResponsivity.csv.
+    
+    If wavelength_nm is supplied, responsivity is interpolated at that wavelength.
+    Otherwise the full table is returned.
+    """
+    try:
+        if wavelength_nm is not None:
+            responsivity = lookup_si_responsivity(wavelength_nm)
+            return SiResponsivityResponse(
+                success=True,
+                wavelength_nm=wavelength_nm,
+                responsivity=responsivity,
+                source_file=str(DEFAULT_SI_RESPONSIVITY_FILE)
+            )
+
+        wavelengths, responsivities = load_si_responsivity_table()
+        table = [
+            {"wavelength_nm": float(wavelength), "responsivity": float(responsivity)}
+            for wavelength, responsivity in zip(wavelengths, responsivities)
+        ]
+        return SiResponsivityResponse(
+            success=True,
+            table=table,
+            source_file=str(DEFAULT_SI_RESPONSIVITY_FILE)
+        )
+    except Exception as e:
+        logger.error(f"Failed to load Si responsivity: {e}")
+        return SiResponsivityResponse(success=False, error=str(e))
 
 
 @router.post("/run", response_model=CalibrationResponse)

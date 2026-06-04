@@ -154,19 +154,19 @@
                             <label>LED Wavelength (nm)</label>
                             <select id="ledWavelength">
                                 <option value="470" selected>Blue (470nm)</option>
-                                <option value="525">Green (525nm)</option>
+                                <option value="523">Green (523nm)</option>
                                 <option value="625">Red (625nm)</option>
                                 <option value="850">IR (850nm)</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label>Responsivity (A/W)</label>
-                            <input type="number" id="responsivity" value="0.27" step="0.01" readonly>
+                            <input type="number" id="responsivity" value="0.145" step="0.001" readonly>
                         </div>
                     </div>
                     <div class="responsivity-info mt-1">
                         <div class="text-small text-muted">Si Responsivity at selected wavelength</div>
-                        <div class="responsivity-value" id="responsivityDisplay">0.27 A/W</div>
+                        <div class="responsivity-value" id="responsivityDisplay">0.145 A/W</div>
                     </div>
                 </div>
 
@@ -251,12 +251,8 @@
     </div>
 
     <script>
-        // Si Responsivity lookup table (wavelength -> A/W)
-        const SI_RESPONSIVITY = {
-            400: 0.19, 450: 0.24, 470: 0.27, 500: 0.30, 525: 0.32,
-            550: 0.34, 600: 0.40, 625: 0.42, 650: 0.44, 700: 0.48,
-            750: 0.50, 800: 0.52, 850: 0.53, 900: 0.50, 950: 0.40
-        };
+        // Loaded from IVtestsuite/SiDiodeResponsivity.csv via the backend.
+        let siResponsivityTable = [];
 
         // State
         let calChart = null;
@@ -267,6 +263,7 @@
         document.addEventListener('DOMContentLoaded', async () => {
             initChart();
             await checkConnection();
+            await loadSiResponsivity();
             updateResponsivity();
             updatePointCount();
 
@@ -328,11 +325,57 @@
             document.getElementById('saveFilename').value = name;
         }
 
+        async function loadSiResponsivity() {
+            try {
+                const result = await UI2.api('GET', '/calibration/si-responsivity');
+                if (result && result.success && Array.isArray(result.table)) {
+                    siResponsivityTable = result.table
+                        .map(row => ({
+                            wavelength: Number(row.wavelength_nm),
+                            responsivity: Number(row.responsivity)
+                        }))
+                        .filter(row => Number.isFinite(row.wavelength) && Number.isFinite(row.responsivity))
+                        .sort((a, b) => a.wavelength - b.wavelength);
+
+                    Utils.log('logBox', `Loaded ${siResponsivityTable.length} Si responsivity points from CSV`, 'success');
+                    return;
+                }
+
+                Utils.log('logBox', `Could not load Si responsivity CSV: ${result?.error || result?.message || 'unknown error'}`, 'warning');
+            } catch (error) {
+                Utils.log('logBox', `Could not load Si responsivity CSV: ${error.message}`, 'warning');
+            }
+        }
+
+        function interpolateResponsivity(wavelength) {
+            if (!siResponsivityTable.length) return 0.2;
+
+            if (wavelength <= siResponsivityTable[0].wavelength) {
+                return siResponsivityTable[0].responsivity;
+            }
+
+            const last = siResponsivityTable[siResponsivityTable.length - 1];
+            if (wavelength >= last.wavelength) {
+                return last.responsivity;
+            }
+
+            for (let i = 1; i < siResponsivityTable.length; i++) {
+                const right = siResponsivityTable[i];
+                if (wavelength <= right.wavelength) {
+                    const left = siResponsivityTable[i - 1];
+                    const fraction = (wavelength - left.wavelength) / (right.wavelength - left.wavelength);
+                    return left.responsivity + fraction * (right.responsivity - left.responsivity);
+                }
+            }
+
+            return last.responsivity;
+        }
+
         function updateResponsivity() {
             const wavelength = parseInt(document.getElementById('ledWavelength').value);
-            const responsivity = SI_RESPONSIVITY[wavelength] || 0.30;
-            document.getElementById('responsivity').value = responsivity;
-            document.getElementById('responsivityDisplay').textContent = `${responsivity} A/W`;
+            const responsivity = interpolateResponsivity(wavelength);
+            document.getElementById('responsivity').value = responsivity.toFixed(3);
+            document.getElementById('responsivityDisplay').textContent = `${responsivity.toFixed(3)} A/W`;
         }
 
         function updatePointCount() {

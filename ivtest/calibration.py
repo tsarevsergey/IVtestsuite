@@ -24,6 +24,41 @@ from .logging_config import get_logger
 
 logger = get_logger("calibration")
 
+DEFAULT_SI_RESPONSIVITY_FILE = Path(__file__).parent.parent / "SiDiodeResponsivity.csv"
+
+
+def load_si_responsivity_table(si_file: Optional[str] = None) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Load the Si diode responsivity table as sorted wavelength and responsivity arrays.
+    """
+    path = Path(si_file) if si_file else DEFAULT_SI_RESPONSIVITY_FILE
+    if not path.exists():
+        raise FileNotFoundError(f"Si responsivity file not found: {path}")
+
+    data = np.genfromtxt(path, delimiter=',', comments='#')
+    if data.ndim == 1:
+        data = data.reshape(1, -1)
+
+    if data.shape[1] < 2:
+        raise ValueError("Si responsivity file must have wavelength and responsivity columns")
+
+    data = data[:, :2]
+    data = data[~np.isnan(data).any(axis=1)]
+    if len(data) == 0:
+        raise ValueError("Si responsivity file contains no valid numeric rows")
+
+    order = np.argsort(data[:, 0])
+    data = data[order]
+    return data[:, 0], data[:, 1]
+
+
+def lookup_si_responsivity(wavelength_nm: float, si_file: Optional[str] = None) -> float:
+    """
+    Look up Si diode responsivity at a wavelength using the CSV table.
+    """
+    wavelengths, responsivities = load_si_responsivity_table(si_file)
+    return float(np.interp(wavelength_nm, wavelengths, responsivities))
+
 
 class CalibrationManager:
     """
@@ -171,12 +206,7 @@ class CalibrationManager:
                 logger.warning(f"Si responsivity file not found: {si_file}")
                 return 0.0
             
-            data = np.loadtxt(path, delimiter=',')
-            wavelengths = data[:, 0]
-            responsivities = data[:, 1]
-            
-            # Interpolate
-            responsivity = np.interp(wavelength_nm, wavelengths, responsivities)
+            responsivity = lookup_si_responsivity(wavelength_nm, str(path))
             logger.info(f"Si diode responsivity at {wavelength_nm}nm: {responsivity:.3f} A/W")
             return float(responsivity)
             

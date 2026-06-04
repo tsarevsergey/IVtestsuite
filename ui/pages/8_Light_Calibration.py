@@ -104,7 +104,12 @@ with col_si2:
     # Load Si responsivity
     si_file = Path(__file__).parent.parent.parent / "SiDiodeResponsivity.csv"
     if si_file.exists():
-        si_data = np.loadtxt(si_file, delimiter=',')
+        si_data = np.genfromtxt(si_file, delimiter=',', comments='#')
+        if si_data.ndim == 1:
+            si_data = si_data.reshape(1, -1)
+        si_data = si_data[:, :2]
+        si_data = si_data[~np.isnan(si_data).any(axis=1)]
+        si_data = si_data[np.argsort(si_data[:, 0])]
         wavelengths_data = si_data[:, 0]
         responsivities = si_data[:, 1]
         
