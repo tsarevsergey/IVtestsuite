@@ -51,10 +51,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware for Streamlit UI
+# CORS middleware for the HTML UI
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Streamlit runs on different port
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

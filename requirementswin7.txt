@@ -3,10 +3,6 @@ uvicorn<0.33
 pydantic<3
 PyYAML
 numpy<2
-pandas<2.1
-plotly
-streamlit==1.32.2
 pyvisa
 pyvisa-py
 pyserial
-watchdog<5

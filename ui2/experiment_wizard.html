@@ -169,7 +169,7 @@
                             </div>
                             <div class="form-group" id="pixelField">
                                 <label>Pixels (1-6, 8)</label>
-                                <input type="text" id="pixel_str" value="1-6">
+                                <input type="text" id="pixel_str" value="1-6" placeholder="Blank = no switches for intensity sweep">
                             </div>
                         </div>
 
@@ -451,7 +451,7 @@
             'light_dark_batch': 'Batch operation: Firstly scans ALL specified pixels with the light source ON, then scans ALL pixels again in the dark.',
             'single_pixel_dark_light': 'Single hardware-connected pixel: scan in the dark, then under illumination. Pixel and LED relay boards are not used. The light channel directly powers the connected LED.',
             'single_pixel_light_dark': 'Single hardware-connected pixel: scan under illumination, then in the dark. Pixel and LED relay boards are not used. The light channel directly powers the connected LED.',
-            'iv_intensity': 'Detailed characterization: Starts with a dark IV on the selected pixel, then sweeps illumination intensity (current or irradiance) and measures IV at each step.'
+            'iv_intensity': 'Detailed characterization: Starts with a dark IV, then sweeps illumination intensity (current or irradiance) and measures IV at each step. Leave Pixels blank to run probe-connected without relay switching.'
         };
 
         // Initialize
@@ -635,12 +635,19 @@
 
         function parsePixels(str) {
             const pixels = [];
+            if (!str || !str.trim()) return pixels;
+
             str.split(',').forEach(part => {
                 part = part.trim();
                 if (part.includes('-')) {
                     const [start, end] = part.split('-').map(Number);
-                    for (let i = start; i <= end; i++) pixels.push(i);
-                } else if (part) pixels.push(Number(part));
+                    if (Number.isFinite(start) && Number.isFinite(end)) {
+                        for (let i = start; i <= end; i++) pixels.push(i);
+                    }
+                } else if (part) {
+                    const pixel = Number(part);
+                    if (Number.isFinite(pixel)) pixels.push(pixel);
+                }
             });
             return [...new Set(pixels)].sort((a, b) => a - b);
         }
@@ -648,6 +655,12 @@
         function generateProtocol() {
             const p = getParams();
             const pixels = parsePixels(p.pixel_str);
+            const requiresPixels = currentTemplate === 'multipixel_iv' || currentTemplate === 'dark_light_batch' || currentTemplate === 'light_dark_batch';
+
+            if (requiresPixels && pixels.length === 0) {
+                alert("Please enter at least one pixel for this protocol.");
+                return;
+            }
 
             if (currentTemplate === 'multipixel_iv') {
                 generatedYaml = generateMultipixelIV(p, pixels);
@@ -708,6 +721,8 @@
         function generateIntensitySweep(p, pixels) {
             // Use only the first pixel if multiple are selected for intensity sweep
             const pixel = pixels[0];
+            const hasPixel = Number.isFinite(pixel);
+            const noSwitch = !hasPixel;
             const isIrrad = p.is_irradiance;
 
             // 1. Generate Intensity Sequence
@@ -729,18 +744,37 @@
             }
 
             const modeLabel = isIrrad ? 'Wcm2' : 'A';
+            const pixelTag = hasPixel ? `_P${pixel}` : '';
+            const targetLabel = hasPixel ? `Pixel ${pixel}` : 'probe-connected device';
+
+            const relaySetupSteps = noSwitch ? [] : [
+                { action: 'relays/connect', params: { mock: false } },
+                { action: 'wait', params: { seconds: 1.0 } },
+                { action: 'relays/all-off' },
+                { action: 'wait', params: { seconds: 1.0 } }
+            ];
+
+            const darkSwitchSteps = noSwitch ? [] : [
+                { action: 'relays/led', params: { channel_id: 0 } },
+                { action: 'relays/pixel', params: { pixel_id: pixel } }
+            ];
+
+            const lightSwitchSteps = noSwitch ? [] : [
+                { action: 'relays/led', params: { channel_id: p.led_wavelength - 1 } }
+            ];
+
+            const cleanupSteps = noSwitch ? [] : [
+                { action: 'relays/all-off' }
+            ];
 
             const steps = [
                 { action: 'smu/connect', params: { channel: 1, mock: false } },
                 { action: 'smu/connect', params: { channel: 2, mock: false } },
-                { action: 'relays/connect', params: { mock: false } },
-                { action: 'wait', params: { seconds: 1.0 } },
-                { action: 'relays/all-off' },
-                { action: 'wait', params: { seconds: 1.0 } },
+                ...relaySetupSteps,
 
                 // PHASE 1: DARK MEASUREMENT
-                { action: 'relays/led', params: { channel_id: 0 } },
-                { action: 'relays/pixel', params: { pixel_id: pixel } },
+                { action: 'smu/output', params: { channel: p.light_channel, enabled: false } },
+                ...darkSwitchSteps,
                 { action: 'wait', params: { seconds: 1.0 } },
                 {
                     action: 'smu/configure',
@@ -758,11 +792,11 @@
                 },
                 {
                     action: 'data/save',
-                    params: { data: '$dark_iv_data', filename: `${p.sample_name}_P${pixel}_DARK` }
+                    params: { data: '$dark_iv_data', filename: `${p.sample_name}${pixelTag}_DARK` }
                 },
 
                 // PHASE 2: INTENSITY SWEEP (Now using a Loop)
-                { action: 'relays/led', params: { channel_id: p.led_wavelength - 1 } },
+                ...lightSwitchSteps,
                 { action: 'smu/configure', params: { channel: p.light_channel, compliance: p.bias_compliance, compliance_type: p.bias_compliance_type, nplc: p.nplc } },
                 { action: 'smu/source-mode', params: { channel: p.light_channel, mode: p.bias_mode } },
                 { action: 'smu/output', params: { channel: p.light_channel, enabled: true } },
@@ -795,7 +829,7 @@
                             action: 'data/save',
                             params: {
                                 data: '$light_iv_data',
-                                filename: `${p.sample_name}_P${pixel}_{$intensity_val}${modeLabel}`
+                                filename: `${p.sample_name}${pixelTag}_{$intensity_val}${modeLabel}`
                             }
                         }
                     ]
@@ -804,16 +838,19 @@
                 // Cleanup
                 { action: 'smu/output', params: { channel: p.sweep_channel, enabled: false } },
                 { action: 'smu/output', params: { channel: p.light_channel, enabled: false } },
-                { action: 'relays/all-off' }
+                ...cleanupSteps
             ];
 
             return {
                 name: p.protocol_name,
-                description: `IV-Intensity sweep on Pixel ${pixel}. ${n} steps.`,
-                version: 3.0,
+                description: `IV-Intensity sweep on ${targetLabel}. ${n} steps.${noSwitch ? ' No relay switching.' : ''}`,
+                version: 3.1,
+                skip_relay_cleanup: noSwitch,
                 // Add metadata for easier runner recognition
                 parameters: {
-                    pixel_id: pixel,
+                    pixel_id: hasPixel ? pixel : null,
+                    hardware_switching: noSwitch ? 'none' : 'relays',
+                    led_wavelength: noSwitch ? 'none' : p.led_wavelength,
                     intensity_mode: isIrrad ? 'irradiance' : 'current',
                     cal_file: isIrrad ? p.cal_file : null
                 },
