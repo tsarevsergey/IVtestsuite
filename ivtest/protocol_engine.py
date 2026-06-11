@@ -729,6 +729,7 @@ class ProtocolEngine:
         """
         variable = params.get("variable", "i")
         sequence = params.get("sequence", [])
+        sequence_vars = params.get("sequence_vars", {}) or {}
         rng = params.get("range", {})
         
         # Determine items to iterate
@@ -744,20 +745,36 @@ class ProtocolEngine:
             
         if not items:
             return {"success": False, "message": "No items to iterate"}
+
+        if sequence_vars and not isinstance(sequence_vars, dict):
+            return {"success": False, "message": "sequence_vars must be a mapping of variable names to sequences"}
+
+        for extra_var, values in sequence_vars.items():
+            if not isinstance(values, list):
+                return {"success": False, "message": f"sequence_vars.{extra_var} must be a list"}
+            if len(values) < len(items):
+                return {
+                    "success": False,
+                    "message": f"sequence_vars.{extra_var} has {len(values)} values for {len(items)} loop items"
+                }
             
         logger.info(f"Starting loop over '{variable}' with {len(items)} items")
         
         total_iterations = 0
-        for val in items:
+        for idx, val in enumerate(items):
             # Check for abort first
             if run_manager.is_abort_requested():
                 logger.warning("Loop aborted")
                 break
                 
             # Set loop variable
+            loop_values = {variable: val}
+            for extra_var, values in sequence_vars.items():
+                loop_values[extra_var] = values[idx]
+
             with self._data_lock:
-                self._captured[variable] = val
-            logger.info(f"Loop iteration: {variable}={val}")
+                self._captured.update(loop_values)
+            logger.info(f"Loop iteration: {loop_values}")
             
             # Execute sub-steps recursively
             for i, step in enumerate(steps):

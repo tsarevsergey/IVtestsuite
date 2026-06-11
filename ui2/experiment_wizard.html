@@ -561,25 +561,40 @@
             if (!calData) return;
             const target = parseFloat(document.getElementById('target_irradiance').value);
 
-            // Linear Interpolation (JS version of np.interp)
-            function interpolate(x, xArr, yArr) {
-                if (x <= xArr[0]) return yArr[0];
-                if (x >= xArr[xArr.length - 1]) return yArr[yArr.length - 1];
-                for (let i = 0; i < xArr.length - 1; i++) {
-                    if (x >= xArr[i] && x <= xArr[i + 1]) {
-                        const t = (x - xArr[i]) / (xArr[i + 1] - xArr[i]);
-                        return yArr[i] + t * (yArr[i + 1] - yArr[i]);
-                    }
-                }
-                return yArr[0];
-            }
-
-            const current = interpolate(target, calData.irradiances, calData.currents);
+            const current = calibrationToCurrent(target);
             document.getElementById('light_current').value = current.toFixed(8);
 
             const resultEl = document.getElementById('convResult');
             resultEl.classList.remove('hidden');
             resultEl.textContent = `⚡ Converted: ${current.toFixed(8)} A`;
+        }
+
+        function interpolateCalibration(x, xArr, yArr) {
+            const points = xArr
+                .map((xVal, idx) => ({ x: Number(xVal), y: Number(yArr[idx]) }))
+                .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y))
+                .sort((a, b) => a.x - b.x);
+
+            if (points.length === 0) return 0;
+            if (x <= points[0].x) return points[0].y;
+            if (x >= points[points.length - 1].x) return points[points.length - 1].y;
+
+            for (let i = 0; i < points.length - 1; i++) {
+                const left = points[i];
+                const right = points[i + 1];
+                if (x >= left.x && x <= right.x) {
+                    const span = right.x - left.x;
+                    if (span === 0) return left.y;
+                    const t = (x - left.x) / span;
+                    return left.y + t * (right.y - left.y);
+                }
+            }
+            return points[0].y;
+        }
+
+        function calibrationToCurrent(irradianceWcm2) {
+            if (!calData || !Array.isArray(calData.irradiances) || !Array.isArray(calData.currents)) return 0;
+            return interpolateCalibration(irradianceWcm2, calData.irradiances, calData.currents);
         }
 
         function setLightMode(mode) {
@@ -665,6 +680,10 @@
             if (currentTemplate === 'multipixel_iv') {
                 generatedYaml = generateMultipixelIV(p, pixels);
             } else if (currentTemplate === 'iv_intensity') {
+                if (p.is_irradiance && (!calData || !Array.isArray(calData.irradiances) || !Array.isArray(calData.currents))) {
+                    alert("Please select a calibration file before generating an irradiance intensity sweep.");
+                    return;
+                }
                 generatedYaml = generateIntensitySweep(p, pixels);
             } else if (currentTemplate === 'single_pixel_dark_light' || currentTemplate === 'single_pixel_light_dark') {
                 generatedYaml = generateSinglePixelSweep(p, currentTemplate === 'single_pixel_dark_light' ? 'dark_first' : 'light_first');
@@ -731,7 +750,9 @@
             const e = p.intensity_stop;
             const n = p.intensity_points;
 
-            if (p.intensity_scale === 'log') {
+            if (n <= 1) {
+                intensitySequence.push(s);
+            } else if (p.intensity_scale === 'log') {
                 const startLog = Math.log10(s);
                 const stopLog = Math.log10(e);
                 for (let i = 0; i < n; i++) {
@@ -743,9 +764,23 @@
                 }
             }
 
+            const ledCurrentSequence = isIrrad
+                ? intensitySequence.map(irrad => parseFloat(calibrationToCurrent(irrad).toFixed(8)))
+                : intensitySequence;
+
             const modeLabel = isIrrad ? 'Wcm2' : 'A';
             const pixelTag = hasPixel ? `_P${pixel}` : '';
             const targetLabel = hasPixel ? `Pixel ${pixel}` : 'probe-connected device';
+            const loopParams = {
+                variable: 'intensity_val',
+                sequence: intensitySequence
+            };
+            if (isIrrad) {
+                loopParams.sequence_vars = {
+                    led_current: ledCurrentSequence
+                };
+            }
+            const ledSetValue = isIrrad ? '$led_current' : '$intensity_val';
 
             const relaySetupSteps = noSwitch ? [] : [
                 { action: 'relays/connect', params: { mock: false } },
@@ -803,16 +838,13 @@
                 { action: 'wait', params: { seconds: 2.0 } },
                 {
                     action: 'control/loop',
-                    params: {
-                        variable: 'intensity_val',
-                        sequence: intensitySequence
-                    },
+                    params: loopParams,
                     steps: [
                         {
                             action: 'smu/set',
                             params: {
                                 channel: p.light_channel,
-                                value: '$intensity_val'
+                                value: ledSetValue
                             }
                         },
                         { action: 'wait', params: { seconds: p.wait_time } },
@@ -852,7 +884,9 @@
                     hardware_switching: noSwitch ? 'none' : 'relays',
                     led_wavelength: noSwitch ? 'none' : p.led_wavelength,
                     intensity_mode: isIrrad ? 'irradiance' : 'current',
-                    cal_file: isIrrad ? p.cal_file : null
+                    cal_file: isIrrad ? p.cal_file : null,
+                    intensity_sequence: intensitySequence,
+                    led_current_sequence: isIrrad ? ledCurrentSequence : null
                 },
                 steps: steps
             };

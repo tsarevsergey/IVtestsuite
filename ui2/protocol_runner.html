@@ -1552,10 +1552,16 @@
                         }
                         return yArr[0];
                     }
-                    targetLoop.params.sequence = seq.map(irrad => {
+                    const currentSeq = seq.map(irrad => {
                         const curr = interpolate(irrad, calData.irradiances, calData.currents);
                         return parseFloat(curr.toFixed(8));
                     });
+                    if (targetLoop.params.sequence_vars && Array.isArray(targetLoop.params.sequence_vars.led_current)) {
+                        targetLoop.params.sequence = seq;
+                        targetLoop.params.sequence_vars.led_current = currentSeq;
+                    } else {
+                        targetLoop.params.sequence = currentSeq;
+                    }
                 }
             });
 
@@ -1937,7 +1943,14 @@
                     const loopCount = params.count || sequence.length || 1;
 
                     for (let i = 0; i < loopCount; i++) {
-                        const ctx = { ...loopContext, [loopVar]: sequence[i] || i };
+                        const ctx = { ...loopContext, [loopVar]: sequence[i] !== undefined ? sequence[i] : i };
+                        if (params.sequence_vars) {
+                            Object.entries(params.sequence_vars).forEach(([extraVar, values]) => {
+                                if (Array.isArray(values) && values[i] !== undefined) {
+                                    ctx[extraVar] = values[i];
+                                }
+                            });
+                        }
                         for (const subStep of loopSteps) {
                             processStep(subStep, ctx);
                         }
